@@ -42,6 +42,9 @@ python/caffe/proto/
 # IPython notebook checkpoints
 .ipynb_checkpoints
 
+# ctags
+tags
+
 ## Caffe
 
 # User's build configuration
