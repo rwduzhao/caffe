@@ -350,25 +350,6 @@ class CuDNNPoolingLayer : public PoolingLayer<Dtype> {
 };
 #endif
 
-/**
- * @brief Dynamically pools the input image by taking the max, average, etc. within regions.
- *
- * TODO(dox): thorough documentation for Forward, Backward, and proto params.
- */
-template <typename Dtype>
-class DynamicPoolingLayer : public PoolingLayer<Dtype> {
- public:
-  explicit DynamicPoolingLayer(const LayerParameter& param)
-      : PoolingLayer<Dtype>(param) {}
-
-  virtual inline LayerParameter_LayerType type() const {
-    return LayerParameter_LayerType_DYNAMIC_POOLING;
-  }
-
- protected:
-  int pooling_map_size_;
-};
-
 }  // namespace caffe
 
 #endif  // CAFFE_VISION_LAYERS_HPP_
