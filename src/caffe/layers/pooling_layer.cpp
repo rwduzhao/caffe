@@ -55,7 +55,9 @@ void PoolingLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
     CHECK(this->layer_param_.pooling_param().pool()
         == PoolingParameter_PoolMethod_AVE
         || this->layer_param_.pooling_param().pool()
-        == PoolingParameter_PoolMethod_MAX)
+        == PoolingParameter_PoolMethod_MAX
+        || this->layer_param_.pooling_param().pool()
+        == PoolingParameter_PoolMethod_KMAX)
         << "Padding implemented only for average and max pooling.";
     CHECK_LT(pad_h_, kernel_h_);
     CHECK_LT(pad_w_, kernel_w_);
@@ -84,6 +86,18 @@ void PoolingLayer<Dtype>::Reshape(const vector<Blob<Dtype>*>& bottom,
     CHECK_LT((pooled_height_ - 1) * stride_h_, height_ + pad_h_);
     CHECK_LT((pooled_width_ - 1) * stride_w_, width_ + pad_w_);
   }
+  // rwduzhao {{{
+  if (this->layer_param_.pooling_param().pool() == PoolingParameter_PoolMethod_KMAX) {
+    if (this->layer_param_.pooling_param().dynamic_k() > width_) {
+      pooled_width_ = width_;
+      LOG(INFO) << "Dynamic pooling width ("
+        << this->layer_param_.pooling_param().dynamic_k()
+        << ") was set larger than bottom layer width ("
+        << width_ << ").";
+    } else
+      pooled_width_ = this->layer_param_.pooling_param().dynamic_k();
+  }
+  // rwduzhao }}}
   (*top)[0]->Reshape(bottom[0]->num(), channels_, pooled_height_,
       pooled_width_);
   if (top->size() > 1) {
@@ -100,6 +114,12 @@ void PoolingLayer<Dtype>::Reshape(const vector<Blob<Dtype>*>& bottom,
       PoolingParameter_PoolMethod_STOCHASTIC) {
     rand_idx_.Reshape(bottom[0]->num(), channels_, pooled_height_,
       pooled_width_);
+  }
+  // If kmax pooling, we will initialize the vector index part.
+  if (this->layer_param_.pooling_param().pool() ==
+      PoolingParameter_PoolMethod_KMAX && top->size() == 1) {
+    max_idx_.Reshape(bottom[0]->num(), channels_, pooled_height_,
+        pooled_width_);
   }
 }
 
