@@ -82,9 +82,12 @@ bool read_text_to_datum(const std::string data_file, const int label,
 
 int main(int argc, char** argv) {
   ::google::InitGoogleLogging(argv[0]);
+#ifndef GFLAGS_GFLAGS_H_
+  namespace gflags = google;
+#endif
 
-  google::SetUsageMessage("convert_text_features info_file db_path\n");
-  google::ParseCommandLineFlags(&argc, &argv, true);
+  gflags::SetUsageMessage("convert_text_features info_file db_path\n");
+  gflags::ParseCommandLineFlags(&argc, &argv, true);
 
   /* info file */
   std::string data_info_file = argv[1];
