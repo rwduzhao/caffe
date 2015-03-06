@@ -6,7 +6,7 @@
 #include "caffe/util/math_functions.hpp"
 #include "caffe/vision_layers.hpp"
 
-bool debug = false;
+bool debug = true;
 
 struct data_struct {
   int index;
@@ -225,9 +225,11 @@ __global__ void KMaxPoolForward(const int top_count, const Dtype* bottom_data,
     for (int data_array_index = 0; data_array_index < top_k; ++data_array_index) {
       int top_data_index = 0;
       if (direction == PoolingParameter_PoolDirection_HORIZONTAL)
-        top_data_index = (n * bottom_channels + c) * top_height * top_width + ph * top_width + pw * pooled_width + data_array_index;
+        // top_data_index = (n * bottom_channels + c) * top_height * top_width + ph * top_width + pw * pooled_width + data_array_index;
+        top_data_index = (n * bottom_channels + c) * top_height * top_width + ph * top_width + pw * top_k + data_array_index;
       else if (direction == PoolingParameter_PoolDirection_VERTICAL)
-        top_data_index = (n * bottom_channels + c) * top_height * top_width + (ph + data_array_index) * top_width + pw;
+        // top_data_index = (n * bottom_channels + c) * top_height * top_width + (ph + data_array_index) * top_width + pw;
+        top_data_index = (n * bottom_channels + c) * top_height * top_width + (ph * top_k + data_array_index) * top_width + pw;
 
       top_data[top_data_index] = data_array[data_array_index].value;
       if (mask)
@@ -235,34 +237,7 @@ __global__ void KMaxPoolForward(const int top_count, const Dtype* bottom_data,
       else
         top_mask[top_data_index] = data_array[data_array_index].index;
     }
-//    for (int h = 0; h < filling_height; ++h) {
-//      for (int w = 0; w < filling_width; ++w) {
-//        if (direction == PoolingParameter_PoolDirection_HORIZONTAL)
-//          top_data_index = (n*bottom_channels + c)*top_height*top_width + ph*top_width + pw*pooled_width + w;
-//        else if (direction == PoolingParameter_PoolDirection_VERTICAL)
-//          top_data_index = (n*bottom_channels + c)*top_height*top_width + h*top_width + pw;
-//
-//        top_data[top_data_index] = data_array[data_array_index].value;
-//        if (mask)
-//          mask[top_data_index] = data_array[data_array_index].index;
-//        else
-//          top_mask[top_data_index] = data_array[data_array_index].index;
-//
-//        ++data_array_index;
-//      }
-//    }
-//    for (data_array_index = 0; data_array_index < top_k; ++data_array_index) {
-//      if (direction == PoolingParameter_PoolDirection_HORIZONTAL)
-//        top_data_index = pooled_width*index + data_array_index;
-//      else if (direction == PoolingParameter_PoolDirection_VERTICAL)
-//        top_data_index = 0;
-//      top_data[top_data_index] = data_array[data_array_index].value;
-//      if (mask) {
-//        mask[top_data_index] = data_array[data_array_index].index;
-//      } else {
-//        top_mask[top_data_index] = data_array[data_array_index].index;
-//      }
-//    }
+
     free(data_array);
   }
 }
@@ -440,6 +415,11 @@ void PoolingLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
       pad_h_, pad_w_,
       this->layer_param_.pooling_param().direction(), this->layer_param_.pooling_param().top_k(),
       top_data, mask, top_mask);
+    if (debug) {
+      std::cout << "forward phase" << std::endl;
+      std::cout << "bottom data" << std::endl;
+      print_blob_data(bottom[0], bottom[0]->cpu_data());
+    }
     break;
   default:
     LOG(FATAL) << "Unknown pooling method.";
@@ -678,6 +658,7 @@ void PoolingLayer<Dtype>::Backward_gpu(const vector<Blob<Dtype>*>& top,
       mask = max_idx_.gpu_data();
     }
     if (debug) {
+      std::cout << "backward phase" << std::endl;
       std::cout << "top data" << std::endl;
       print_blob_data(top[0], top[0]->cpu_data());
       std::cout << "top mask" << std::endl;
