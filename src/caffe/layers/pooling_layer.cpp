@@ -17,12 +17,19 @@ template <typename Dtype>
 void PoolingLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
       vector<Blob<Dtype>*>* top) {
   PoolingParameter pool_param = this->layer_param_.pooling_param();
-  CHECK(!pool_param.has_kernel_size() !=
-      !(pool_param.has_kernel_h() && pool_param.has_kernel_w()))
+  if (this->layer_param_.pooling_param().pool() == PoolingParameter_PoolMethod_KMAX) {
+    if (this->layer_param_.pooling_param().direction() == PoolingParameter_PoolDirection_HORIZONTAL)
+      CHECK(pool_param.has_kernel_h()) << "Kernel height is required for horizontal dynamic k pooling.";
+    else if (this->layer_param_.pooling_param().direction() == PoolingParameter_PoolDirection_VERTICAL)
+      CHECK(pool_param.has_kernel_w()) << "Kernel width is required for vertical dynamic k pooling.";
+  } else {
+    CHECK(!pool_param.has_kernel_size() !=
+          !(pool_param.has_kernel_h() && pool_param.has_kernel_w()))
       << "Filter size is kernel_size OR kernel_h and kernel_w; not both";
-  CHECK(pool_param.has_kernel_size() ||
-      (pool_param.has_kernel_h() && pool_param.has_kernel_w()))
+    CHECK(pool_param.has_kernel_size() ||
+          (pool_param.has_kernel_h() && pool_param.has_kernel_w()))
       << "For non-square filters both kernel_h and kernel_w are required.";
+  }
   CHECK((!pool_param.has_pad() && pool_param.has_pad_h()
       && pool_param.has_pad_w())
       || (!pool_param.has_pad_h() && !pool_param.has_pad_w()))
@@ -31,11 +38,21 @@ void PoolingLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
       && pool_param.has_stride_w())
       || (!pool_param.has_stride_h() && !pool_param.has_stride_w()))
       << "Stride is stride OR stride_h and stride_w are required.";
-  if (pool_param.has_kernel_size()) {
-    kernel_h_ = kernel_w_ = pool_param.kernel_size();
+  if (this->layer_param_.pooling_param().pool() == PoolingParameter_PoolMethod_KMAX) {
+    if (this->layer_param_.pooling_param().direction() == PoolingParameter_PoolDirection_HORIZONTAL) {
+      kernel_h_ = pool_param.kernel_h();
+      kernel_w_ = bottom[0]->width();
+    } else if (this->layer_param_.pooling_param().direction() == PoolingParameter_PoolDirection_VERTICAL) {
+      kernel_h_ = bottom[0]->height();
+      kernel_w_ = pool_param.kernel_w();
+    }
   } else {
-    kernel_h_ = pool_param.kernel_h();
-    kernel_w_ = pool_param.kernel_w();
+    if (pool_param.has_kernel_size()) {
+      kernel_h_ = kernel_w_ = pool_param.kernel_size();
+    } else {
+      kernel_h_ = pool_param.kernel_h();
+      kernel_w_ = pool_param.kernel_w();
+    }
   }
   CHECK_GT(kernel_h_, 0) << "Filter dimensions cannot be zero.";
   CHECK_GT(kernel_w_, 0) << "Filter dimensions cannot be zero.";
@@ -62,6 +79,14 @@ void PoolingLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
     CHECK_LT(pad_h_, kernel_h_);
     CHECK_LT(pad_w_, kernel_w_);
   }
+  if (this->layer_param_.pooling_param().pool() == PoolingParameter_PoolMethod_KMAX) {
+    if (this->layer_param_.pooling_param().direction() == PoolingParameter_PoolDirection_HORIZONTAL)
+      CHECK_GE(kernel_w_, this->layer_param_.pooling_param().top_k()) <<
+        "Top k must be greater than the kernel width in horizontal dynamic k pooling.";
+    else if (this->layer_param_.pooling_param().direction() == PoolingParameter_PoolDirection_VERTICAL)
+      CHECK_GE(kernel_h_, this->layer_param_.pooling_param().top_k()) <<
+        "Top k must be greater than the kernel height in vertical dynamic k pooling.";
+  }
 }
 
 template <typename Dtype>
@@ -86,18 +111,16 @@ void PoolingLayer<Dtype>::Reshape(const vector<Blob<Dtype>*>& bottom,
     CHECK_LT((pooled_height_ - 1) * stride_h_, height_ + pad_h_);
     CHECK_LT((pooled_width_ - 1) * stride_w_, width_ + pad_w_);
   }
-  // rwduzhao {{{
+
   if (this->layer_param_.pooling_param().pool() == PoolingParameter_PoolMethod_KMAX) {
-    if (this->layer_param_.pooling_param().dynamic_k() > width_) {
-      pooled_width_ = width_;
-      LOG(INFO) << "Dynamic pooling width ("
-        << this->layer_param_.pooling_param().dynamic_k()
-        << ") was set larger than bottom layer width ("
-        << width_ << ").";
-    } else
-      pooled_width_ = this->layer_param_.pooling_param().dynamic_k();
+    if (this->layer_param_.pooling_param().direction() == PoolingParameter_PoolDirection_HORIZONTAL)
+      pooled_width_ = pooled_width_*this->layer_param_.pooling_param().top_k();
+    else if (this->layer_param_.pooling_param().direction() == PoolingParameter_PoolDirection_VERTICAL)
+      pooled_height_ = pooled_height_*this->layer_param_.pooling_param().top_k();
+    else
+      LOG(FATAL) << "Unknown pooling direction.";
   }
-  // rwduzhao }}}
+
   (*top)[0]->Reshape(bottom[0]->num(), channels_, pooled_height_,
       pooled_width_);
   if (top->size() > 1) {
