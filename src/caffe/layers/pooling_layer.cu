@@ -9,78 +9,90 @@
 bool debug = false;
 
 template <typename Dtype>
-struct sort_datum {
-  int index;
-  Dtype value;
-};
-
-template <typename Dtype>
-__device__ void swap(struct sort_datum<Dtype> * array, int i, int j) {
-  int tmp_index = array[i].index;
-  Dtype tmp_value = array[i].value;
-  array[i].index = array[j].index;
-  array[i].value = array[j].value;
-  array[j].index = tmp_index;
-  array[j].value = tmp_value;
+__device__ void swap_array_values(Dtype * array, int i, int j) {
+  Dtype tmp_value = array[i];
+  array[i] = array[j];
+  array[j] = tmp_value;
 }
 
-template <typename Dtype>
-__device__ void heap_adjust_descend_by_value(struct sort_datum<Dtype> array[], int i, const int length) {
+template <typename Dtype, typename T>
+__device__ void insertion_sort_ascend(Dtype array[], T follow_array[], const int length) {
+  for (int array_index = 1 ; array_index < length; array_index++) {
+    int sortid = array_index;
+    while (sortid > 0 && array[sortid] < array[sortid - 1]) {
+      swap_array_values(array, sortid, sortid - 1);
+      swap_array_values(follow_array, sortid, sortid - 1);
+      --sortid;
+    }
+  }
+}
+
+template <typename Dtype, typename T>
+__device__ void insertion_sort_descend(Dtype array[], T follow_array[], const int length) {
+  for (int array_index = 1 ; array_index < length; array_index++) {
+    int sortid = array_index;
+    while (sortid > 0 && array[sortid] > array[sortid - 1]) {
+      swap_array_values(array, sortid, sortid - 1);
+      swap_array_values(follow_array, sortid, sortid - 1);
+      --sortid;
+    }
+  }
+}
+
+template <typename Dtype, typename T>
+__device__ void heap_adjust_ascend(Dtype array[], T follow_array[], int i, const int length) {
   while (2 * i + 1 < length) {
     int child_index = 2 * i + 1;
-    if (child_index < length - 1 && array[child_index + 1].value < array[child_index].value)
+    if (child_index < length - 1 && array[child_index + 1] > array[child_index])
       ++child_index;
-    if (array[i].value > array[child_index].value) {
-      swap(array, i, child_index);
+    if (array[i] < array[child_index]) {
+      swap_array_values(array, i, child_index);
+      swap_array_values(follow_array, i, child_index);
     } else
       break;
     i = child_index;
   }
 }
 
-template <typename Dtype>
-__device__ void heap_sort_descend_by_value(struct sort_datum<Dtype> array[], const int length) {
+template <typename Dtype, typename T>
+__device__ void heap_sort_ascend(Dtype array[], T follow_array[], const int length) {
   if (length == 1)
     return;
   for (int i = (length - 2) / 2; i >= 0; --i)
-    heap_adjust_descend_by_value(array, i, length);
+    heap_adjust_ascend(array, follow_array, i, length);
   for (int i = length - 1; i > 0; --i) {
-    swap(array, i, 0);
-    heap_adjust_descend_by_value(array, 0, i);
+    swap_array_values(array, i, 0);
+    swap_array_values(follow_array, i, 0);
+    heap_adjust_ascend(array, follow_array, 0, i);
   }
 }
 
-template <typename Dtype>
-__device__ void heap_adjust_ascend_by_index(struct sort_datum<Dtype> array[], int i, const int length) {
+template <typename Dtype, typename T>
+__device__ void heap_adjust_descend(Dtype array[], T follow_array[], int i, const int length) {
   while (2 * i + 1 < length) {
     int child_index = 2 * i + 1;
-    if (child_index < length - 1 && array[child_index + 1].index > array[child_index].index)
+    if (child_index < length - 1 && array[child_index + 1] < array[child_index])
       ++child_index;
-    if (array[i].index < array[child_index].index) {
-      swap(array, i, child_index);
+    if (array[i] > array[child_index]) {
+      swap_array_values(array, i, child_index);
+      swap_array_values(follow_array, i, child_index);
     } else
       break;
     i = child_index;
   }
 }
 
-template <typename Dtype>
-__device__ void heap_sort_ascend_by_index(struct sort_datum<Dtype> array[], const int length) {
+template <typename Dtype, typename T>
+__device__ void heap_sort_descend(Dtype array[], T follow_array[], const int length) {
   if (length == 1)
     return;
   for (int i = (length - 2) / 2; i >= 0; --i)
-    heap_adjust_ascend_by_index(array, i, length);
+    heap_adjust_descend(array, follow_array, i, length);
   for (int i = length - 1; i > 0; --i) {
-    swap(array, 0, i);
-    heap_adjust_ascend_by_index(array, 0, i);
+    swap_array_values(array, i, 0);
+    swap_array_values(follow_array, i, 0);
+    heap_adjust_descend(array, follow_array, 0, i);
   }
-}
-
-template <typename Dtype>
-__device__ void print_data_array(const struct sort_datum<Dtype> * array, const int length) {
-  for (int i = 0; i < length; ++i)
-    printf("%d:%f ", array[i].index, array[i].value);
-  printf("\n");
 }
 
 namespace caffe {
@@ -151,8 +163,9 @@ __global__ void KMaxPoolForward(const int n_pooling, const Dtype* bottom_data,
                                 const int kernel_h, const int kernel_w,
                                 const int stride_h, const int stride_w,
                                 const int pad_h, const int pad_w,
-                                const int direction, const int top_k,
-                                Dtype* top_data, int* mask, Dtype* top_mask) {
+                                const int pool_direction, const int top_k,
+                                Dtype* top_data, int* mask, Dtype* top_mask,
+                                Dtype* pool_data, int* pool_ids, int sort_method) {
   CUDA_KERNEL_LOOP(index, n_pooling) {
     int pw = index % pooled_width;
     int ph = (index / pooled_width) % pooled_height;
@@ -168,105 +181,44 @@ __global__ void KMaxPoolForward(const int n_pooling, const Dtype* bottom_data,
     wstart = max(wstart, 0);
     int length = (hend - hstart) * (wend - wstart);
     bottom_data += (n * bottom_channels + c) * bottom_height * bottom_width;
+    pool_data += index * kernel_h * kernel_w;
+    pool_ids += index * kernel_h * kernel_w;
 
-    bool use_heap_sort = true;
-    if (use_heap_sort) {
-      /*  sort k max  */
-      struct sort_datum<Dtype> * array = (struct sort_datum<Dtype> *)malloc(sizeof(struct sort_datum<Dtype>) * length);
-      int array_index = 0;
-      for (int h = hstart; h < hend; ++h) {
-        for (int w = wstart; w < wend; ++w) {
-          int position_offset = h * bottom_width + w;
-          array[array_index].index = position_offset;
-          array[array_index].value = bottom_data[position_offset];
-          ++array_index;
-        }
+    int array_index = 0;
+    for (int h = hstart; h < hend; ++h) {
+      for (int w = wstart; w < wend; ++w) {
+        int position_offset = h * bottom_width + w;
+        pool_data[array_index] = bottom_data[position_offset];
+        pool_ids[array_index] = position_offset;
+        ++array_index;
       }
-      heap_sort_descend_by_value(array, length);
-      heap_sort_ascend_by_index(array, top_k);
+    }
 
-      /*  put k max onto top data  */
-      for (int array_index = 0; array_index < top_k; ++array_index) {
-        int top_data_index = -1;
-        if (direction == PoolingParameter_PoolDirection_HORIZONTAL)
-          top_data_index = (n * bottom_channels + c) * top_height * top_width +
-            ph * top_width + pw * top_k + array_index;
-        else if (direction == PoolingParameter_PoolDirection_VERTICAL)
-          top_data_index = (n * bottom_channels + c) * top_height * top_width +
-            (ph * top_k + array_index) * top_width + pw;
+    /*  sort k max  */
+    if (sort_method == PoolingParameter_SortMethod_HEAP) {
+      heap_sort_descend(pool_data, pool_ids, length);
+      heap_sort_ascend(pool_ids, pool_data, top_k);
+    } else if (sort_method == PoolingParameter_SortMethod_INSERTION) {
+      insertion_sort_descend(pool_data, pool_ids, length);
+      insertion_sort_ascend(pool_ids, pool_data, top_k);
+    }
 
-        top_data[top_data_index] = array[array_index].value;
+    /*  put k max onto top data  */
+    for (int array_index = 0; array_index < top_k; ++array_index) {
+      int top_data_index = -1;
+      if (pool_direction == PoolingParameter_PoolDirection_HORIZONTAL)
+        top_data_index = (n * bottom_channels + c) * top_height * top_width +
+          ph * top_width + pw * top_k + array_index;
+      else if (pool_direction == PoolingParameter_PoolDirection_VERTICAL)
+        top_data_index = (n * bottom_channels + c) * top_height * top_width +
+          (ph * top_k + array_index) * top_width + pw;
 
-        if (mask)
-          mask[top_data_index] = array[array_index].index;
-        else
-          top_mask[top_data_index] = array[array_index].index;
-      }
+      top_data[top_data_index] = pool_data[array_index];
 
-      free(array);
-    } else {
-      Dtype * array = (Dtype *)malloc(sizeof(Dtype) * length);
-      int * posid = (int *)malloc(sizeof(int) * length);
-
-      int array_index = 0;
-      for (int h = hstart; h < hend; ++h) {
-        for (int w = wstart; w < wend; ++w) {
-          int position_offset = h * bottom_width + w;
-          posid[array_index] = static_cast<int>(position_offset);
-          array[array_index] = static_cast<Dtype>(bottom_data[position_offset]);
-          ++array_index;
-        }
-      }
-
-      for (int array_index = 1 ; array_index < length; array_index++) {
-        int sortid = array_index;
-        while (sortid > 0 && array[sortid] > array[sortid - 1]) {
-          Dtype tmpval = array[sortid];
-          array[sortid] = array[sortid - 1];
-          array[sortid - 1] = tmpval;
-
-          int tmpid = posid[sortid];
-          posid[sortid] = posid[sortid - 1];
-          posid[sortid - 1] = tmpid;
-
-          --sortid;
-        }
-      }
-
-      for (int array_index = 1 ; array_index < top_k; array_index++) {
-        int sortid = array_index;
-        while (sortid > 0 && posid[sortid] < posid[sortid - 1]) {
-          Dtype tmpval = array[sortid];
-          array[sortid] = array[sortid - 1];
-          array[sortid - 1] = tmpval;
-
-          int tmpid = posid[sortid];
-          posid[sortid] = posid[sortid - 1];
-          posid[sortid - 1] = tmpid;
-
-          --sortid;
-        }
-      }
-
-      for (int array_index = 0; array_index < top_k; ++array_index) {
-        int top_data_index = -1;
-        if (direction == PoolingParameter_PoolDirection_HORIZONTAL)
-          top_data_index = (n * bottom_channels + c) * top_height * top_width +
-            ph * top_width + pw * top_k + array_index;
-        else if (direction == PoolingParameter_PoolDirection_VERTICAL)
-          top_data_index = (n * bottom_channels + c) * top_height * top_width +
-            (ph * top_k + array_index) * top_width + pw;
-
-        top_data[top_data_index] = array[array_index];
-
-        if (mask)
-          mask[top_data_index] = posid[array_index];
-        else
-          top_mask[top_data_index] = posid[array_index];
-      }
-
-      free(array);
-      free(posid);
+      if (mask)
+        mask[top_data_index] = pool_ids[array_index];
+      else
+        top_mask[top_data_index] = pool_ids[array_index];
     }
   }
 }
@@ -389,8 +341,8 @@ void PoolingLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
   int single_pooled_height = -1;
   int single_pooled_width = -1;
   int n_pooling = -1;
-  float * array;
-  float * posid;
+  Dtype * pool_data;
+  int * pool_ids;
 
   switch (this->layer_param_.pooling_param().pool()) {
   case PoolingParameter_PoolMethod_MAX:
@@ -441,23 +393,28 @@ void PoolingLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
       mask = max_idx_.mutable_gpu_data();
     }
 
-    if (this->layer_param_.pooling_param().direction() == PoolingParameter_PoolDirection_HORIZONTAL) {
+    if (this->layer_param_.pooling_param().pool_direction() == PoolingParameter_PoolDirection_HORIZONTAL) {
       single_pooled_height = pooled_height_;
       single_pooled_width = pooled_width_ / this->layer_param_.pooling_param().top_k();
-    } else if (this->layer_param_.pooling_param().direction() == PoolingParameter_PoolDirection_VERTICAL) {
+    } else if (this->layer_param_.pooling_param().pool_direction() == PoolingParameter_PoolDirection_VERTICAL) {
       single_pooled_height = pooled_height_ / this->layer_param_.pooling_param().top_k();
       single_pooled_width = pooled_width_;
     }
     n_pooling = count / this->layer_param_.pooling_param().top_k();
 
+    cudaMalloc((void**)&pool_data, sizeof(Dtype) * n_pooling * kernel_h_ * kernel_w_);
+    cudaMalloc((void**)&pool_ids, sizeof(int) * n_pooling * kernel_h_ * kernel_w_);
     // NOLINT_NEXT_LINE(whitespace/operators)
     KMaxPoolForward<Dtype><<<CAFFE_GET_BLOCKS(n_pooling), CAFFE_CUDA_NUM_THREADS>>>(
       n_pooling, bottom_data, bottom[0]->num(), channels_,
       height_, width_, single_pooled_height, single_pooled_width, pooled_height_, pooled_width_,
       kernel_h_, kernel_w_, stride_h_, stride_w_, pad_h_, pad_w_,
-      this->layer_param_.pooling_param().direction(),
+      this->layer_param_.pooling_param().pool_direction(),
       this->layer_param_.pooling_param().top_k(),
-      top_data, mask, top_mask);
+      top_data, mask, top_mask, pool_data, pool_ids,
+      this->layer_param_.pooling_param().sort_method());
+    cudaFree(pool_data);
+    cudaFree(pool_ids);
     break;
   default:
     LOG(FATAL) << "Unknown pooling method.";
@@ -521,14 +478,14 @@ __global__ void KMaxPoolBackward(const int bottom_count, const Dtype* top_diff,
                                  const int kernel_h, const int kernel_w,
                                  const int stride_h, const int stride_w,
                                  const int pad_h, const int pad_w,
-                                 const int direction, const int top_k,
+                                 const int pool_direction, const int top_k,
                                  Dtype* bottom_diff) {
   int pooled_height = 0;
   int pooled_width = 0;
-  if (direction == PoolingParameter_PoolDirection_HORIZONTAL) {
+  if (pool_direction == PoolingParameter_PoolDirection_HORIZONTAL) {
     pooled_height = top_height;
     pooled_width = top_width / top_k;
-  } else if (direction == PoolingParameter_PoolDirection_VERTICAL) {
+  } else if (pool_direction == PoolingParameter_PoolDirection_VERTICAL) {
     pooled_height = top_height / top_k;
     pooled_width = top_width;
   }
@@ -545,10 +502,10 @@ __global__ void KMaxPoolBackward(const int bottom_count, const Dtype* top_diff,
     int pwstart = (w + pad_w < kernel_w) ?
       0 : (w + pad_w - kernel_w) / stride_w + 1;
     int pwend = min((w + pad_w) / stride_w + 1, pooled_width);
-    if (direction == PoolingParameter_PoolDirection_HORIZONTAL) {
+    if (pool_direction == PoolingParameter_PoolDirection_HORIZONTAL) {
       pwstart *= top_k;
       pwend *= top_k;
-    } else if (direction == PoolingParameter_PoolDirection_VERTICAL) {
+    } else if (pool_direction == PoolingParameter_PoolDirection_VERTICAL) {
       phstart *= top_k;
       phend *= top_k;
     }
@@ -709,7 +666,7 @@ void PoolingLayer<Dtype>::Backward_gpu(const vector<Blob<Dtype>*>& top,
       count, top_diff, mask, top_mask, top[0]->num(), channels_,
       height_, width_, pooled_height_, pooled_width_,
       kernel_h_, kernel_w_, stride_h_, stride_w_, pad_h_, pad_w_,
-      this->layer_param_.pooling_param().direction(),
+      this->layer_param_.pooling_param().pool_direction(),
       this->layer_param_.pooling_param().top_k(),
       bottom_diff);
     if (debug) {

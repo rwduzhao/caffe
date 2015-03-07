@@ -18,9 +18,9 @@ void PoolingLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
       vector<Blob<Dtype>*>* top) {
   PoolingParameter pool_param = this->layer_param_.pooling_param();
   if (this->layer_param_.pooling_param().pool() == PoolingParameter_PoolMethod_KMAX) {
-    if (this->layer_param_.pooling_param().direction() == PoolingParameter_PoolDirection_HORIZONTAL)
+    if (this->layer_param_.pooling_param().pool_direction() == PoolingParameter_PoolDirection_HORIZONTAL)
       CHECK(pool_param.has_kernel_h()) << "Kernel height is required for horizontal dynamic k pooling.";
-    else if (this->layer_param_.pooling_param().direction() == PoolingParameter_PoolDirection_VERTICAL)
+    else if (this->layer_param_.pooling_param().pool_direction() == PoolingParameter_PoolDirection_VERTICAL)
       CHECK(pool_param.has_kernel_w()) << "Kernel width is required for vertical dynamic k pooling.";
   } else {
     CHECK(!pool_param.has_kernel_size() !=
@@ -39,10 +39,10 @@ void PoolingLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
       || (!pool_param.has_stride_h() && !pool_param.has_stride_w()))
       << "Stride is stride OR stride_h and stride_w are required.";
   if (this->layer_param_.pooling_param().pool() == PoolingParameter_PoolMethod_KMAX) {
-    if (this->layer_param_.pooling_param().direction() == PoolingParameter_PoolDirection_HORIZONTAL) {
+    if (this->layer_param_.pooling_param().pool_direction() == PoolingParameter_PoolDirection_HORIZONTAL) {
       kernel_h_ = pool_param.kernel_h();
       kernel_w_ = bottom[0]->width();
-    } else if (this->layer_param_.pooling_param().direction() == PoolingParameter_PoolDirection_VERTICAL) {
+    } else if (this->layer_param_.pooling_param().pool_direction() == PoolingParameter_PoolDirection_VERTICAL) {
       kernel_h_ = bottom[0]->height();
       kernel_w_ = pool_param.kernel_w();
     }
@@ -80,10 +80,10 @@ void PoolingLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
     CHECK_LT(pad_w_, kernel_w_);
   }
   if (this->layer_param_.pooling_param().pool() == PoolingParameter_PoolMethod_KMAX) {
-    if (this->layer_param_.pooling_param().direction() == PoolingParameter_PoolDirection_HORIZONTAL)
+    if (this->layer_param_.pooling_param().pool_direction() == PoolingParameter_PoolDirection_HORIZONTAL)
       CHECK_GE(kernel_w_, this->layer_param_.pooling_param().top_k()) <<
         "Top k must be greater than the kernel width in horizontal dynamic k pooling.";
-    else if (this->layer_param_.pooling_param().direction() == PoolingParameter_PoolDirection_VERTICAL)
+    else if (this->layer_param_.pooling_param().pool_direction() == PoolingParameter_PoolDirection_VERTICAL)
       CHECK_GE(kernel_h_, this->layer_param_.pooling_param().top_k()) <<
         "Top k must be greater than the kernel height in vertical dynamic k pooling.";
   }
@@ -113,9 +113,9 @@ void PoolingLayer<Dtype>::Reshape(const vector<Blob<Dtype>*>& bottom,
   }
 
   if (this->layer_param_.pooling_param().pool() == PoolingParameter_PoolMethod_KMAX) {
-    if (this->layer_param_.pooling_param().direction() == PoolingParameter_PoolDirection_HORIZONTAL)
+    if (this->layer_param_.pooling_param().pool_direction() == PoolingParameter_PoolDirection_HORIZONTAL)
       pooled_width_ = pooled_width_*this->layer_param_.pooling_param().top_k();
-    else if (this->layer_param_.pooling_param().direction() == PoolingParameter_PoolDirection_VERTICAL)
+    else if (this->layer_param_.pooling_param().pool_direction() == PoolingParameter_PoolDirection_VERTICAL)
       pooled_height_ = pooled_height_*this->layer_param_.pooling_param().top_k();
     else
       LOG(FATAL) << "Unknown pooling direction.";
