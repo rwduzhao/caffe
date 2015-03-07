@@ -8,21 +8,24 @@
 
 bool debug = false;
 
+template <typename Dtype>
 struct sort_datum {
   int index;
-  float value;  /*  TODO Dtype  */
+  Dtype value;
 };
 
-__device__ void swap(struct sort_datum * array, int i, int j) {
+template <typename Dtype>
+__device__ void swap(struct sort_datum<Dtype> * array, int i, int j) {
   int tmp_index = array[i].index;
-  float tmp_value = array[i].value;
+  Dtype tmp_value = array[i].value;
   array[i].index = array[j].index;
   array[i].value = array[j].value;
   array[j].index = tmp_index;
   array[j].value = tmp_value;
 }
 
-__device__ void heap_adjust_descend_by_value(struct sort_datum array[], int i, int length) {
+template <typename Dtype>
+__device__ void heap_adjust_descend_by_value(struct sort_datum<Dtype> array[], int i, const int length) {
   while (2 * i + 1 < length) {
     int child_index = 2 * i + 1;
     if (child_index < length - 1 && array[child_index + 1].value < array[child_index].value)
@@ -35,7 +38,8 @@ __device__ void heap_adjust_descend_by_value(struct sort_datum array[], int i, i
   }
 }
 
-__device__ void heap_sort_descend_by_value(struct sort_datum array[], int length) {
+template <typename Dtype>
+__device__ void heap_sort_descend_by_value(struct sort_datum<Dtype> array[], const int length) {
   if (length == 1)
     return;
   for (int i = (length - 2) / 2; i >= 0; --i)
@@ -46,33 +50,10 @@ __device__ void heap_sort_descend_by_value(struct sort_datum array[], int length
   }
 }
 
-__device__ void heap_adjust_ascend_by_value(struct sort_datum array[], int i, int length) {
+template <typename Dtype>
+__device__ void heap_adjust_ascend_by_index(struct sort_datum<Dtype> array[], int i, const int length) {
   while (2 * i + 1 < length) {
     int child_index = 2 * i + 1;
-    if (child_index < length - 1 && array[child_index + 1].value > array[child_index].value)
-      ++child_index;
-    if (array[i].value < array[child_index].value) {
-      swap(array, i, child_index);
-    } else
-      break;
-    i = child_index;
-  }
-}
-
-__device__ void heap_sort_ascend_by_value(struct sort_datum array[], int length) {
-  if (length == 1)
-    return;
-  for (int i = (length - 2) / 2; i >= 0; --i)
-    heap_adjust_ascend_by_value(array, i, length);
-  for (int i = length - 1; i > 0; --i) {
-    swap(array, i, 0);
-    heap_adjust_ascend_by_value(array, 0, i);
-  }
-}
-
-__device__ void heap_adjust_ascend_by_index(struct sort_datum array[], int i, int length) {
-  while (2 * i + 1 < length) {
-    int child_index = 2*i + 1;
     if (child_index < length - 1 && array[child_index + 1].index > array[child_index].index)
       ++child_index;
     if (array[i].index < array[child_index].index) {
@@ -83,7 +64,8 @@ __device__ void heap_adjust_ascend_by_index(struct sort_datum array[], int i, in
   }
 }
 
-__device__ void heap_sort_ascend_by_index(struct sort_datum array[], int length) {
+template <typename Dtype>
+__device__ void heap_sort_ascend_by_index(struct sort_datum<Dtype> array[], const int length) {
   if (length == 1)
     return;
   for (int i = (length - 2) / 2; i >= 0; --i)
@@ -94,7 +76,8 @@ __device__ void heap_sort_ascend_by_index(struct sort_datum array[], int length)
   }
 }
 
-__device__ void print_data_array(const struct sort_datum * array, const int length) {
+template <typename Dtype>
+__device__ void print_data_array(const struct sort_datum<Dtype> * array, const int length) {
   for (int i = 0; i < length; ++i)
     printf("%d:%f ", array[i].index, array[i].value);
   printf("\n");
@@ -189,13 +172,13 @@ __global__ void KMaxPoolForward(const int n_pooling, const Dtype* bottom_data,
     bool use_heap_sort = true;
     if (use_heap_sort) {
       /*  sort k max  */
-      struct sort_datum * array = (struct sort_datum *)malloc(sizeof(struct sort_datum) * length);
+      struct sort_datum<Dtype> * array = (struct sort_datum<Dtype> *)malloc(sizeof(struct sort_datum<Dtype>) * length);
       int array_index = 0;
       for (int h = hstart; h < hend; ++h) {
         for (int w = wstart; w < wend; ++w) {
           int position_offset = h * bottom_width + w;
-          array[array_index].index = (int)position_offset;
-          array[array_index].value = (float)bottom_data[position_offset];
+          array[array_index].index = position_offset;
+          array[array_index].value = bottom_data[position_offset];
           ++array_index;
         }
       }
@@ -206,9 +189,11 @@ __global__ void KMaxPoolForward(const int n_pooling, const Dtype* bottom_data,
       for (int array_index = 0; array_index < top_k; ++array_index) {
         int top_data_index = -1;
         if (direction == PoolingParameter_PoolDirection_HORIZONTAL)
-          top_data_index = (n * bottom_channels + c) * top_height * top_width + ph * top_width + pw * top_k + array_index;
+          top_data_index = (n * bottom_channels + c) * top_height * top_width +
+            ph * top_width + pw * top_k + array_index;
         else if (direction == PoolingParameter_PoolDirection_VERTICAL)
-          top_data_index = (n * bottom_channels + c) * top_height * top_width + (ph * top_k + array_index) * top_width + pw;
+          top_data_index = (n * bottom_channels + c) * top_height * top_width +
+            (ph * top_k + array_index) * top_width + pw;
 
         top_data[top_data_index] = array[array_index].value;
 
@@ -266,9 +251,11 @@ __global__ void KMaxPoolForward(const int n_pooling, const Dtype* bottom_data,
       for (int array_index = 0; array_index < top_k; ++array_index) {
         int top_data_index = -1;
         if (direction == PoolingParameter_PoolDirection_HORIZONTAL)
-          top_data_index = (n * bottom_channels + c) * top_height * top_width + ph * top_width + pw * top_k + array_index;
+          top_data_index = (n * bottom_channels + c) * top_height * top_width +
+            ph * top_width + pw * top_k + array_index;
         else if (direction == PoolingParameter_PoolDirection_VERTICAL)
-          top_data_index = (n * bottom_channels + c) * top_height * top_width + (ph * top_k + array_index) * top_width + pw;
+          top_data_index = (n * bottom_channels + c) * top_height * top_width +
+            (ph * top_k + array_index) * top_width + pw;
 
         top_data[top_data_index] = array[array_index];
 
