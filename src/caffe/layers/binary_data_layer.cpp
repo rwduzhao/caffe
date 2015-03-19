@@ -139,6 +139,7 @@ bool BinaryDataLayer<Dtype>::ReadBinariesToTop(const int lines_id, const int bat
     }
 
     const int top_offset = batch_item_id * this->datum_size_;
+    top_data += top_offset;
 
     /*  fill into top data  */
     int top_ix = 0;
@@ -146,22 +147,15 @@ bool BinaryDataLayer<Dtype>::ReadBinariesToTop(const int lines_id, const int bat
       for (int c = 0; c < this->GetFeatureChannels(0); ++c) {
         for (int h = 0; h < this->GetFeatureHeight(0); ++h) {
           for (int ix = 0; ix < feature_files_.size(); ++ix) {
-            for (int w = 0; w < GetFeatureWidth(ix); ++w) {
-              Dtype value;
-              if (fread(&value, sizeof(Dtype), 1, p_feature_files[ix]) > 0) {
-                Dtype mean = feature_means_[ix][(c * this->GetFeatureHeight(0) + h) * GetFeatureWidth(ix) + w];
-                int top_index = top_offset + top_ix;
-                int max_index = 50;
-                    max_index *= ((this)->datum_channels_);
-                    max_index *= ((this)->datum_height_);
-                    max_index *= ((this)->datum_width_);
-                if (top_index >= max_index)
-                  LOG(INFO) << top_index << " " << max_index;
-                top_data[top_offset + top_ix] = value - mean;
-                ++top_ix;
-              } else
-                break;
-            }
+            const int mean_offset = (c * this->GetFeatureHeight(0) + h) * GetFeatureWidth(ix);
+            Dtype * mean = feature_means_[ix] + mean_offset;
+            if (fread(top_data, sizeof(Dtype), GetFeatureWidth(ix), p_feature_files[ix]) == GetFeatureWidth(ix)) {
+              for (int w = 0; w < GetFeatureWidth(ix); ++w)
+                top_data[w] -= mean[w];
+              top_data += GetFeatureWidth(ix);
+              top_ix += GetFeatureWidth(ix);
+            } else
+              break;
           }
         }
       }
@@ -175,7 +169,7 @@ bool BinaryDataLayer<Dtype>::ReadBinariesToTop(const int lines_id, const int bat
 
     /*  set remaining top data into zeros  */
     while (top_ix < this->datum_size_) {
-      top_data[top_offset + top_ix] = 0.0;
+      top_data[top_ix] = 0.0;
       ++top_ix;
     }
   } else
