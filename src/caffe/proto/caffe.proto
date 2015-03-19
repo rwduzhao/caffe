@@ -825,5 +825,5 @@ message BinaryDataParameter {
     WIDTH = 2;
   }
   optional MergeDirection merge_direction = 3;
-  repeated BinaryFeatureParameter binary_feature = 4;
+  repeated BinaryFeatureParameter binary_features = 4;
 }

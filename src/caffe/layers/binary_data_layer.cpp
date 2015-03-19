@@ -14,21 +14,21 @@ namespace caffe {
 
 template <typename Dtype>
 int BinaryDataLayer<Dtype>::GetFeatureChannels(const int ix) {
-  return this->layer_param_.binary_data_param().binary_feature(ix).channels();
+  return this->layer_param_.binary_data_param().binary_features(ix).channels();
 }
 
 template <typename Dtype>
 int BinaryDataLayer<Dtype>::GetFeatureHeight(const int ix) {
-  return this->layer_param_.binary_data_param().binary_feature(ix).height();
+  return this->layer_param_.binary_data_param().binary_features(ix).height();
 }
 template <typename Dtype>
 int BinaryDataLayer<Dtype>::GetFeatureWidth(const int ix) {
-  return this->layer_param_.binary_data_param().binary_feature(ix).width();
+  return this->layer_param_.binary_data_param().binary_features(ix).width();
 }
 
 template <typename Dtype>
 void BinaryDataLayer<Dtype>::CheckFeatureSizeIntegrity() {
-  for (int ix = 1; ix < this->layer_param_.binary_data_param().binary_feature_size(); ++ix) {
+  for (int ix = 1; ix < this->layer_param_.binary_data_param().binary_features_size(); ++ix) {
     if (this->layer_param_.binary_data_param().merge_direction() == BinaryDataParameter_MergeDirection_WIDTH) {
       CHECK(GetFeatureChannels(0) == GetFeatureChannels(ix));
       CHECK(GetFeatureHeight(0) == GetFeatureHeight(ix));
@@ -58,8 +58,8 @@ void BinaryDataLayer<Dtype>::ReadSourceListToLines() {
 template <typename Dtype>
 void BinaryDataLayer<Dtype>::ReadFeatureFiles() {
   feature_files_.clear();
-  for (int ix = 0; ix < this->layer_param_.binary_data_param().binary_feature_size(); ++ix) {
-    const string feature_list_file = this->layer_param_.binary_data_param().binary_feature(ix).list_file();
+  for (int ix = 0; ix < this->layer_param_.binary_data_param().binary_features_size(); ++ix) {
+    const string feature_list_file = this->layer_param_.binary_data_param().binary_features(ix).list_file();
     std::ifstream feature_infile(feature_list_file.c_str());
     CHECK(feature_infile.good()) << "could not open feature list file: " << feature_list_file;
     string feature_file_name;
@@ -74,11 +74,11 @@ void BinaryDataLayer<Dtype>::ReadFeatureFiles() {
 template <typename Dtype>
 void BinaryDataLayer<Dtype>::ReadFeatureMeans() {
   feature_means_.clear();
-  for (int ix = 0; ix < this->layer_param_.binary_data_param().binary_feature_size(); ++ix) {
+  for (int ix = 0; ix < this->layer_param_.binary_data_param().binary_features_size(); ++ix) {
     const int feature_dim = GetFeatureChannels(ix) * GetFeatureHeight(ix) * GetFeatureWidth(ix);
     Dtype * feature_mean = new Dtype[feature_dim]();
     feature_means_.push_back(feature_mean);
-    const string feature_mean_file = this->layer_param_.binary_data_param().binary_feature(ix).mean_file();
+    const string feature_mean_file = this->layer_param_.binary_data_param().binary_features(ix).mean_file();
     if (!feature_mean_file.empty()) {
       FILE * fd = NULL;
       fd = fopen(feature_mean_file.c_str(), "rb");
@@ -99,9 +99,9 @@ void BinaryDataLayer<Dtype>::ReadFeatureMeans() {
 template <typename Dtype>
 void BinaryDataLayer<Dtype>::SetSkipSize() {
   const int base_skip_size = this->layer_param_.binary_data_param().skip_size();
-  for (int ix = 0; ix < this->layer_param_.binary_data_param().binary_feature_size(); ++ix) {
-    if (!this->layer_param_.binary_data_param().binary_feature(ix).has_skip_size())
-      this->layer_param_.mutable_binary_data_param()->mutable_binary_feature(ix)->set_skip_size(base_skip_size);
+  for (int ix = 0; ix < this->layer_param_.binary_data_param().binary_features_size(); ++ix) {
+    if (!this->layer_param_.binary_data_param().binary_features(ix).has_skip_size())
+      this->layer_param_.mutable_binary_data_param()->mutable_binary_features(ix)->set_skip_size(base_skip_size);
   }
 }
 
@@ -111,7 +111,7 @@ void BinaryDataLayer<Dtype>::SetDatumSize() {
     this->datum_channels_ = GetFeatureChannels(0);
     this->datum_height_ = this->layer_param_.binary_data_param().max_length();
     this->datum_width_ = 0;
-    for (int ix = 0; ix < this->layer_param_.binary_data_param().binary_feature_size(); ++ix)
+    for (int ix = 0; ix < this->layer_param_.binary_data_param().binary_features_size(); ++ix)
       this->datum_width_ += GetFeatureWidth(ix);
   } else
     LOG(FATAL) << "unrecgnized merge direction";
@@ -141,7 +141,7 @@ bool BinaryDataLayer<Dtype>::ReadBinariesToTop(const int lines_id, const int bat
     vector<FILE *> p_feature_files;
     for (int ix = 0; ix < feature_files_.size(); ++ix) {
       FILE * fd = NULL;
-      const string feature_file = this->layer_param_.binary_data_param().binary_feature(ix).root_dir() + "/" + feature_files_[ix][lines_id];
+      const string feature_file = this->layer_param_.binary_data_param().binary_features(ix).root_dir() + "/" + feature_files_[ix][lines_id];
       fd = fopen(feature_file.c_str(), "rb");
       CHECK(fd != NULL) << "could not open feature file: " << feature_file;
       p_feature_files.push_back(fd);
@@ -159,7 +159,7 @@ bool BinaryDataLayer<Dtype>::ReadBinariesToTop(const int lines_id, const int bat
             if (read_size == feature_width) {
               for (int w = 0; w < feature_width; ++w)
                 top_data[w] -= feature_means_[ix][w];
-              const int skip_size = this->layer_param_.binary_data_param().binary_feature(ix).skip_size();
+              const int skip_size = this->layer_param_.binary_data_param().binary_features(ix).skip_size();
               fseek(p_feature_files[ix], sizeof(Dtype) * feature_width * skip_size, SEEK_CUR);
             } else if (read_size == 0) {
               fclose(p_feature_files[ix]);
