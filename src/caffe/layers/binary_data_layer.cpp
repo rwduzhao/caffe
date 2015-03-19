@@ -128,7 +128,7 @@ template <typename Dtype>
 bool BinaryDataLayer<Dtype>::ReadBinariesToTop(const int lines_id, const int batch_item_id) {
   Dtype* top_data = this->prefetch_data_.mutable_cpu_data();
   if (this->layer_param_.binary_data_param().merge_direction() == BinaryDataParameter_MergeDirection_WIDTH) {
-    /*  open feature files  */
+    /* open feature files */
     vector<FILE *> p_feature_files;
     for (int ix = 0; ix < feature_files_.size(); ++ix) {
       FILE * fd = NULL;
@@ -138,43 +138,39 @@ bool BinaryDataLayer<Dtype>::ReadBinariesToTop(const int lines_id, const int bat
       p_feature_files.push_back(fd);
     }
 
-    const int top_offset = batch_item_id * this->datum_size_;
-    top_data += top_offset;
+    /* fill into top data */
+    top_data += batch_item_id * this->datum_size_;
+    for (int c = 0; c < this->datum_channels_; ++c) {
+      for (int h = 0; h < this->datum_height_; ++h) {
+        for (int ix = 0; ix < feature_files_.size(); ++ix) {
+          const int feature_width = GetFeatureWidth(ix);
 
-    /*  fill into top data  */
-    int top_ix = 0;
-    for (int i = 0; i < this->layer_param_.binary_data_param().max_length(); ++i) {
-      for (int c = 0; c < this->GetFeatureChannels(0); ++c) {
-        for (int h = 0; h < this->GetFeatureHeight(0); ++h) {
-          for (int ix = 0; ix < feature_files_.size(); ++ix) {
-            const int mean_offset = (c * this->GetFeatureHeight(0) + h) * GetFeatureWidth(ix);
-            Dtype * mean = feature_means_[ix] + mean_offset;
-            if (fread(top_data, sizeof(Dtype), GetFeatureWidth(ix), p_feature_files[ix]) == GetFeatureWidth(ix)) {
-              for (int w = 0; w < GetFeatureWidth(ix); ++w)
-                top_data[w] -= mean[w];
-              top_data += GetFeatureWidth(ix);
-              top_ix += GetFeatureWidth(ix);
+          if (p_feature_files[ix] != NULL) {
+            const size_t read_size = fread(top_data, sizeof(Dtype), feature_width, p_feature_files[ix]);
+            if (read_size == feature_width) {
+              for (int w = 0; w < feature_width; ++w)
+                top_data[w] -= feature_means_[ix][w];
+            } else if (read_size == 0) {
+              fclose(p_feature_files[ix]);
+              p_feature_files[ix] = NULL;
             } else
-              break;
+              LOG(FATAL) << "invalid feature width in " << lines_[lines_id].first
+                << " (" << read_size << " against " << feature_width << ")";
           }
+
+          if (p_feature_files[ix] == NULL) {
+            for (int w = 0; w < feature_width; ++w)
+              top_data[w] = 0 - feature_means_[ix][w];
+          }
+
+          top_data += feature_width;
         }
       }
-    }
-
-    /*  close feature files  */
-    for (int ix = 0; ix < feature_files_.size(); ++ix) {
-      fclose(p_feature_files[ix]);
-      p_feature_files[ix] = NULL;
-    }
-
-    /*  set remaining top data into zeros  */
-    while (top_ix < this->datum_size_) {
-      top_data[top_ix] = 0.0;
-      ++top_ix;
     }
   } else
     LOG(FATAL) << "unsupported merge direction";
 
+  /* fill into top data */
   Dtype* top_label = this->prefetch_label_.mutable_cpu_data();
   top_label[batch_item_id] = lines_[lines_id].second;
 
