@@ -377,6 +377,7 @@ class BinaryDataLayer : public BasePrefetchingDataLayer<Dtype> {
   virtual void ReadSourceListToLines();
   virtual void ReadFeatureFiles();
   virtual void ReadFeatureMeans();
+  virtual void SetSkipSize();
   virtual void SetDatumSize();
   virtual bool ReadBinariesToTop(const int lines_id, const int batch_item_id);
 

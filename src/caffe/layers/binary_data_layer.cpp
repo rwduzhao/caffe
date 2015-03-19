@@ -97,6 +97,15 @@ void BinaryDataLayer<Dtype>::ReadFeatureMeans() {
 }
 
 template <typename Dtype>
+void BinaryDataLayer<Dtype>::SetSkipSize() {
+  const int base_skip_size = this->layer_param_.binary_data_param().skip_size();
+  for (int ix = 0; ix < this->layer_param_.binary_data_param().binary_feature_size(); ++ix) {
+    if (!this->layer_param_.binary_data_param().binary_feature(ix).has_skip_size())
+      this->layer_param_.mutable_binary_data_param()->mutable_binary_feature(ix)->set_skip_size(base_skip_size);
+  }
+}
+
+template <typename Dtype>
 void BinaryDataLayer<Dtype>::SetDatumSize() {
   if (this->layer_param_.binary_data_param().merge_direction() == BinaryDataParameter_MergeDirection_WIDTH) {
     this->datum_channels_ = GetFeatureChannels(0);
@@ -144,12 +153,14 @@ bool BinaryDataLayer<Dtype>::ReadBinariesToTop(const int lines_id, const int bat
       for (int h = 0; h < this->datum_height_; ++h) {
         for (int ix = 0; ix < feature_files_.size(); ++ix) {
           const int feature_width = GetFeatureWidth(ix);
-
+          /* for the read binary feature height within datum_height */
           if (p_feature_files[ix] != NULL) {
             const size_t read_size = fread(top_data, sizeof(Dtype), feature_width, p_feature_files[ix]);
             if (read_size == feature_width) {
               for (int w = 0; w < feature_width; ++w)
                 top_data[w] -= feature_means_[ix][w];
+              const int skip_size = this->layer_param_.binary_data_param().binary_feature(ix).skip_size();
+              fseek(p_feature_files[ix], sizeof(Dtype) * feature_width * skip_size, SEEK_CUR);
             } else if (read_size == 0) {
               fclose(p_feature_files[ix]);
               p_feature_files[ix] = NULL;
@@ -157,7 +168,7 @@ bool BinaryDataLayer<Dtype>::ReadBinariesToTop(const int lines_id, const int bat
               LOG(FATAL) << "invalid feature width in " << lines_[lines_id].first
                 << " (" << read_size << " against " << feature_width << ")";
           }
-
+          /* for the remaining datum_height greater than binary feature height */
           if (p_feature_files[ix] == NULL) {
             for (int w = 0; w < feature_width; ++w)
               top_data[w] = 0 - feature_means_[ix][w];
@@ -190,6 +201,8 @@ void BinaryDataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bottom, 
   ReadSourceListToLines();
   ReadFeatureFiles();
   ReadFeatureMeans();
+
+  SetSkipSize();
 
   SetDatumSize();
   const int batch_size = this->layer_param_.binary_data_param().batch_size();
