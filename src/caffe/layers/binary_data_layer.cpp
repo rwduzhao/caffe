@@ -135,49 +135,56 @@ void BinaryDataLayer<Dtype>::ShuffleBinarys() {
 
 template <typename Dtype>
 bool BinaryDataLayer<Dtype>::ReadBinariesToTop(const int lines_id, const int batch_item_id) {
-  Dtype* top_data = this->prefetch_data_.mutable_cpu_data();
   if (this->layer_param_.binary_data_param().merge_direction() == BinaryDataParameter_MergeDirection_WIDTH) {
     /* open feature files */
     vector<FILE *> p_feature_files;
+    int n_open_file = 0;
     for (int ix = 0; ix < feature_files_.size(); ++ix) {
       FILE * fd = NULL;
       const string feature_file = this->layer_param_.binary_data_param().binary_features(ix).root_dir() + "/" + feature_files_[ix][lines_id];
       fd = fopen(feature_file.c_str(), "rb");
-      CHECK(fd != NULL) << "could not open feature file: " << feature_file;
+      ++n_open_file;
+      CHECK(fd != NULL) << "errno: " << errno << "; could not open feature file : " << feature_file;
       p_feature_files.push_back(fd);
     }
 
     /* fill into top data */
+    Dtype* top_data = this->prefetch_data_.mutable_cpu_data();
     top_data += batch_item_id * this->datum_size_;
     for (int c = 0; c < this->datum_channels_; ++c) {
       for (int h = 0; h < this->datum_height_; ++h) {
         for (int ix = 0; ix < feature_files_.size(); ++ix) {
           const int feature_width = GetFeatureWidth(ix);
+          bool read = false;
           /* for the read binary feature height within datum_height */
           if (p_feature_files[ix] != NULL) {
             const size_t read_size = fread(top_data, sizeof(Dtype), feature_width, p_feature_files[ix]);
             if (read_size == feature_width) {
               for (int w = 0; w < feature_width; ++w)
                 top_data[w] -= feature_means_[ix][w];
+              read = true;
               const int skip_size = this->layer_param_.binary_data_param().binary_features(ix).skip_size();
               fseek(p_feature_files[ix], sizeof(Dtype) * feature_width * skip_size, SEEK_CUR);
-            } else if (read_size == 0) {
-              fclose(p_feature_files[ix]);
-              p_feature_files[ix] = NULL;
-            } else
+            } else if (read_size > 0)
               LOG(FATAL) << "invalid feature width in " << lines_[lines_id].first
                 << " (" << read_size << " against " << feature_width << ")";
+            if (read_size == 0 || h == this->datum_height_ - 1) {
+              fclose(p_feature_files[ix]);
+              --n_open_file;
+              p_feature_files[ix] = NULL;
+            }
           }
           /* for the remaining datum_height greater than binary feature height */
-          if (p_feature_files[ix] == NULL) {
+          if (!read)
             for (int w = 0; w < feature_width; ++w)
               top_data[w] = 0 - feature_means_[ix][w];
-          }
 
           top_data += feature_width;
         }
       }
     }
+
+    CHECK(n_open_file == 0) << n_open_file << " files not closed.";
   } else
     LOG(FATAL) << "unsupported merge direction";
 
