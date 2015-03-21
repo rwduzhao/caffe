@@ -358,8 +358,12 @@ void Solver<Dtype>::RemarkableSnapshot() {
   NetParameter net_param;
   // For intermediate results, we will also dump the gradient values.
   net_->ToProto(&net_param, param_.snapshot_diff());
+  const int kBufferSize = 100;
+  char buffer[kBufferSize];
+  snprintf(buffer, kBufferSize, "_iter_%d.remarkable_%.0e", iter_, remarkable_loss_);
   string model_filename(param_.snapshot_prefix());
-  model_filename += ".remarkable.caffemodel";
+  model_filename += buffer;
+  model_filename += ".caffemodel";
   LOG(INFO) << "Remarkable snapshotting to " << model_filename
     << " (iteration: " << iter_ << " & loss: " << remarkable_loss_ << ")";
   WriteProtoToBinaryFile(net_param, model_filename.c_str());
