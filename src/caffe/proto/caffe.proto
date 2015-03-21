@@ -815,26 +815,26 @@ message V0LayerParameter {
 // Message that stores parameters used by BinaryFeatureParameter
 message BinaryFeatureParameter {
   optional string list_file = 1;
-  optional string root_dir = 6;
-  optional uint32 skip_size = 7;
-  optional uint32 channels = 2 [default = 1];
-  optional uint32 height = 3 [default = 1];
-  optional uint32 width = 4 [default = 1];
-  optional string mean_file = 5;
+  optional string root_dir = 2;
+  optional uint32 skip_size = 3;
+  optional uint32 channels = 4 [default = 1];
+  optional uint32 height = 5 [default = 1];
+  optional uint32 width = 6 [default = 1];
+  optional string mean_file = 7;
 }
 
 // Message that stores parameters used by BinaryDataParameter
 message BinaryDataParameter {
-  optional string source = 5;
-  optional bool shuffle = 6 [default = false];
-  optional uint32 batch_size = 1;
-  optional uint32 max_length = 2;
-  optional uint32 skip_size = 7 [default = 0];
+  optional string source = 1;
+  optional uint32 batch_size = 2;
+  optional bool shuffle = 3 [default = false];
+  optional uint32 max_length = 4;
+  optional uint32 skip_size = 5 [default = 0];
   enum MergeDirection {
     CHANNELS = 0;
     HEIGHT = 1;
     WIDTH = 2;
   }
-  optional MergeDirection merge_direction = 3;
-  repeated BinaryFeatureParameter binary_features = 4;
+  optional MergeDirection merge_direction = 6;
+  repeated BinaryFeatureParameter binary_features = 7;
 }
