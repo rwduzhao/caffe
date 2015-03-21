@@ -387,6 +387,28 @@ class BinaryDataLayer : public BasePrefetchingDataLayer<Dtype> {
   int lines_id_;
 };
 
+template <typename Dtype>
+class OmniDataLayer : public BasePrefetchingDataLayer<Dtype> {
+ public:
+  explicit OmniDataLayer(const LayerParameter& param)
+    : BasePrefetchingDataLayer<Dtype>(param) {}
+  virtual ~OmniDataLayer();
+  virtual void DataLayerSetUp(const vector<Blob<Dtype>*>& bottom, vector<Blob<Dtype>*>* top);
+
+  virtual inline LayerParameter_LayerType type() const { return LayerParameter_LayerType_OMNI_DATA; }
+  virtual inline int ExactNumBottomBlobs() const { return 0; }
+  virtual inline int ExactNumTopBlobs() const { return 2; }
+
+ protected:
+  shared_ptr<Caffe::RNG> prefetch_rng_;
+  virtual void InternalThreadEntry();
+
+  vector<std::pair<std::string, int> > lines_;  /*  data name, label  */
+  vector<vector<std::string> > feature_files_;  /*  feature sizes, feature file names  */
+  vector<Dtype *> feature_means_;
+  int lines_id_;
+};
+
 }  // namespace caffe
 
 #endif  // CAFFE_DATA_LAYERS_HPP_
