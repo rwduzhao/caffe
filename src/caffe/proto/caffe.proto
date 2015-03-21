@@ -589,14 +589,6 @@ message PoolingParameter {
     STOCHASTIC = 2;
     KMAX = 10;
   }
-  enum PoolDirection {
-    HORIZONTAL = 0;
-    VERTICAL = 1;
-  }
-  enum SortMethod {
-    INSERTION = 0;
-    HEAP = 1;
-  }
   optional PoolMethod pool = 1 [default = MAX]; // The pooling method
   // Pad, kernel size, and stride are all given as a single value for equal
   // dimensions in height and width or as Y, X pairs.
@@ -615,9 +607,17 @@ message PoolingParameter {
     CUDNN = 2;
   }
   optional Engine engine = 11 [default = DEFAULT];
-  optional uint32 top_k = 21 [default = 1];
-  optional PoolDirection pool_direction = 22 [default = HORIZONTAL];
-  optional SortMethod sort_method = 23 [default = INSERTION];
+  optional uint32 top_k = 1001 [default = 1];
+  enum PoolDirection {
+    HORIZONTAL = 0;
+    VERTICAL = 1;
+  }
+  optional PoolDirection pool_direction = 1002 [default = HORIZONTAL];
+  enum SortMethod {
+    INSERTION = 0;
+    HEAP = 1;
+  }
+  optional SortMethod sort_method = 1003 [default = INSERTION];
 }
 
 // Message that stores parameters used by PowerLayer
