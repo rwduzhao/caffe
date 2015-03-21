@@ -163,6 +163,8 @@ void Solver<Dtype>::Solve(const char* resume_file) {
 
   iter_ = 0;
   current_step_ = 0;
+  remarkable_loss_ = this->param_.remarkable_loss();
+  remarkable_loss_factor_ = this->param_.remarkable_loss_factor();
   if (resume_file) {
     LOG(INFO) << "Restoring previous solver status from " << resume_file;
     Restore(resume_file);
@@ -205,6 +207,12 @@ void Solver<Dtype>::Solve(const char* resume_file) {
       smoothed_loss += (loss - losses[idx]) / average_loss;
       losses[idx] = loss;
     }
+
+    if (smoothed_loss <= remarkable_loss_ * remarkable_loss_factor_) {
+      remarkable_loss_ = smoothed_loss;
+      RemarkableSnapshot();
+    }
+
     if (display) {
       LOG(INFO) << "Iteration " << iter_ << ", loss = " << smoothed_loss;
       const vector<Blob<Dtype>*>& result = net_->output_blobs();
@@ -338,9 +346,23 @@ void Solver<Dtype>::Snapshot() {
   state.set_iter(iter_);
   state.set_learned_net(model_filename);
   state.set_current_step(current_step_);
+  state.set_remarkable_loss(remarkable_loss_);
+  state.set_remarkable_loss_factor(remarkable_loss_factor_);
   snapshot_filename = filename + ".solverstate";
   LOG(INFO) << "Snapshotting solver state to " << snapshot_filename;
   WriteProtoToBinaryFile(state, snapshot_filename.c_str());
+}
+
+template <typename Dtype>
+void Solver<Dtype>::RemarkableSnapshot() {
+  NetParameter net_param;
+  // For intermediate results, we will also dump the gradient values.
+  net_->ToProto(&net_param, param_.snapshot_diff());
+  string model_filename(param_.snapshot_prefix());
+  model_filename += ".remarkable.caffemodel";
+  LOG(INFO) << "Remarkable snapshotting to " << model_filename
+    << " (iteration: " << iter_ << " & loss: " << remarkable_loss_ << ")";
+  WriteProtoToBinaryFile(net_param, model_filename.c_str());
 }
 
 template <typename Dtype>
@@ -354,6 +376,8 @@ void Solver<Dtype>::Restore(const char* state_file) {
   }
   iter_ = state.iter();
   current_step_ = state.current_step();
+  remarkable_loss_ = state.remarkable_loss();
+  remarkable_loss_factor_ = state.remarkable_loss_factor();
   RestoreSolverState(state);
 }
 

@@ -162,6 +162,10 @@ message SolverParameter {
 
   // If false, don't save a snapshot after training finishes.
   optional bool snapshot_after_train = 28 [default = true];
+
+  // Snapshot if hit remarkable loss
+  optional float remarkable_loss = 1001 [default = 0.0001];
+  optional float remarkable_loss_factor = 1002 [default = 0.1];
 }
 
 // A message that stores the solver snapshots
@@ -170,6 +174,8 @@ message SolverState {
   optional string learned_net = 2; // The file that stores the learned net.
   repeated BlobProto history = 3; // The history for sgd solvers
   optional int32 current_step = 4 [default = 0]; // The current step for learning rate
+  optional float remarkable_loss = 1001;
+  optional float remarkable_loss_factor = 1002;
 }
 
 enum Phase {
