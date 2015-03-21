@@ -165,7 +165,8 @@ __global__ void KMaxPoolForward(const int n_pooling, const Dtype* bottom_data,
                                 const int pad_h, const int pad_w,
                                 const int pool_direction, const int top_k,
                                 Dtype* top_data, int* mask, Dtype* top_mask,
-                                Dtype* pool_data, int* pool_ids, int sort_method) {
+                                Dtype* pool_data, int* pool_ids,
+                                const int sort_method, const int max_strategy) {
   CUDA_KERNEL_LOOP(index, n_pooling) {
     int pw = index % pooled_width;
     int ph = (index / pooled_width) % pooled_height;
@@ -188,7 +189,16 @@ __global__ void KMaxPoolForward(const int n_pooling, const Dtype* bottom_data,
     for (int h = hstart; h < hend; ++h) {
       for (int w = wstart; w < wend; ++w) {
         int position_offset = h * bottom_width + w;
-        pool_data[array_index] = bottom_data[position_offset];
+        if (max_strategy == PoolingParameter_MaxStrategy_ORIGINAL) {
+          pool_data[array_index] = bottom_data[position_offset];
+        } else if (max_strategy == PoolingParameter_MaxStrategy_ABSOLUTE) {
+          if (bottom_data[position_offset] >= 0)
+            pool_data[array_index] = bottom_data[position_offset];
+          else
+            pool_data[array_index] = -bottom_data[position_offset];
+        } else {
+          //TODO echo error and exit
+        }
         pool_ids[array_index] = position_offset;
         ++array_index;
       }
@@ -412,7 +422,8 @@ void PoolingLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
       this->layer_param_.pooling_param().pool_direction(),
       this->layer_param_.pooling_param().top_k(),
       top_data, mask, top_mask, pool_data, pool_ids,
-      this->layer_param_.pooling_param().sort_method());
+      this->layer_param_.pooling_param().sort_method(),
+      this->layer_param_.pooling_param().max_strategy());
     cudaFree(pool_data);
     cudaFree(pool_ids);
     break;

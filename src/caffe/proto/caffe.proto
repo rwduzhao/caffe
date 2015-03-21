@@ -618,6 +618,11 @@ message PoolingParameter {
     HEAP = 1;
   }
   optional SortMethod sort_method = 1003 [default = INSERTION];
+  enum MaxStrategy {
+    ORIGINAL = 0;
+    ABSOLUTE = 1;
+  }
+  optional MaxStrategy max_strategy = 1004 [default = ABSOLUTE];
 }
 
 // Message that stores parameters used by PowerLayer
