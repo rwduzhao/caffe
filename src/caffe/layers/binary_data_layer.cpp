@@ -9,6 +9,10 @@
 #include "caffe/util/io.hpp"
 #include "caffe/util/math_functions.hpp"
 #include "caffe/util/rng.hpp"
+#include <boost/random.hpp>
+#include <time.h>
+
+using std::ifstream;
 
 namespace caffe {
 
@@ -137,54 +141,103 @@ template <typename Dtype>
 bool BinaryDataLayer<Dtype>::ReadBinariesToTop(const int lines_id, const int batch_item_id) {
   if (this->layer_param_.binary_data_param().merge_direction() == BinaryDataParameter_MergeDirection_WIDTH) {
     /* open feature files */
-    vector<FILE *> p_feature_files;
-    int n_open_file = 0;
+    int num_open_file = 0;
+    std::ifstream *feature_streams = new std::ifstream[feature_files_.size()];
     for (int ix = 0; ix < feature_files_.size(); ++ix) {
-      FILE * fd = NULL;
-      const string feature_file = this->layer_param_.binary_data_param().binary_features(ix).root_dir() + "/" + feature_files_[ix][lines_id];
-      fd = fopen(feature_file.c_str(), "rb");
-      ++n_open_file;
-      CHECK(fd != NULL) << "errno: " << errno << "; could not open feature file : " << feature_file;
-      p_feature_files.push_back(fd);
+      const string file = this->layer_param_.binary_data_param().binary_features(ix).root_dir() + "/" + feature_files_[ix][lines_id];
+      feature_streams[ix].open(file.c_str(), std::ios::in | std::ios::binary);
+      if (feature_streams[ix].is_open()) {
+        ++num_open_file;
+      } else {
+        for (int file_id = 0; file_id < feature_files_.size(); ++file_id) {
+          if (feature_streams[ix].is_open()) {
+            feature_streams[ix].close();
+            --num_open_file;
+          }
+        }
+        if (Caffe::phase() == Caffe::TRAIN) {
+          LOG(ERROR) << "file " << file << " was skipped because it could not be opened";
+          return false;
+        } else if (Caffe::phase() == Caffe::TEST) {
+          LOG(FATAL) << "errno: " << errno << "; could not open feature file : " << file;
+        }
+      }
+
+      /* sample at random start */
+      const float random_start_ratio = this->layer_param_.binary_data_param().random_start_ratio();
+      CHECK(random_start_ratio >= 0 && random_start_ratio <= 1);
+      if (random_start_ratio > 0) {
+        feature_streams[ix].seekg(0, std::ios::end);
+        const std::streampos file_size = feature_streams[ix].tellg();
+        const std::streampos feature_size = sizeof(Dtype) * GetFeatureChannels(ix) * GetFeatureHeight(ix) * GetFeatureWidth(ix);
+        const unsigned long int num_instance = file_size / feature_size;
+
+        boost::mt19937 rng = boost::mt19937();
+        const unsigned long t = clock();
+        rng.seed(t);
+        const unsigned long int max_num = (long int)((num_instance - 1) * random_start_ratio);
+        boost::uniform_int<> range(0, max_num);
+        boost::variate_generator<boost::mt19937&, boost::uniform_int<> > die(rng, range);
+        const std::streampos offset_size = die() * feature_size;
+
+        DLOG(INFO) << "num_instacne: " << num_instance << ", offset: " << offset_size / feature_size << " / " << offset_size;
+
+        feature_streams[ix].seekg(offset_size, std::ios::beg);
+      }
     }
 
     /* fill into top data */
-    Dtype* top_data = this->prefetch_data_.mutable_cpu_data();
-    top_data += batch_item_id * this->datum_size_;
+    Dtype* top_data = this->prefetch_data_.mutable_cpu_data() + this->prefetch_data_.offset(batch_item_id);
     for (int c = 0; c < this->datum_channels_; ++c) {
       for (int h = 0; h < this->datum_height_; ++h) {
         for (int ix = 0; ix < feature_files_.size(); ++ix) {
           const int feature_width = GetFeatureWidth(ix);
           bool read = false;
           /* for the read binary feature height within datum_height */
-          if (p_feature_files[ix] != NULL) {
-            const size_t read_size = fread(top_data, sizeof(Dtype), feature_width, p_feature_files[ix]);
-            if (read_size == feature_width) {
+          if (feature_streams[ix].is_open()) {
+            const unsigned long int feature_size = sizeof(Dtype) * feature_width;
+            const size_t read_size = feature_streams[ix].read(reinterpret_cast<char *>(top_data), feature_size).gcount();
+
+            if (read_size == feature_size) {  /* successful read from file */
               for (int w = 0; w < feature_width; ++w)
                 top_data[w] -= feature_means_[ix][w];
               read = true;
               const int skip_size = this->layer_param_.binary_data_param().binary_features(ix).skip_size();
-              fseek(p_feature_files[ix], sizeof(Dtype) * feature_width * skip_size, SEEK_CUR);
-            } else if (read_size > 0)
-              LOG(FATAL) << "invalid feature width in " << lines_[lines_id].first
-                << " (" << read_size << " against " << feature_width << ")";
-            if (read_size == 0 || h == this->datum_height_ - 1) {
-              fclose(p_feature_files[ix]);
-              --n_open_file;
-              p_feature_files[ix] = NULL;
+              feature_streams[ix].seekg(sizeof(Dtype) * feature_width * skip_size, std::ios::cur);
+            } else if (!feature_streams[ix].eof()) {  /* less than feature width was read */
+              for (int file_id = 0; file_id < feature_files_.size(); ++file_id) {
+                if (feature_streams[ix].is_open()) {
+                  feature_streams[ix].close();
+                  --num_open_file;
+                }
+              }
+              const string file = this->layer_param_.binary_data_param().binary_features(ix).root_dir() + "/" + feature_files_[ix][lines_id];
+              if (Caffe::phase() == Caffe::TRAIN) {
+                LOG(ERROR) << "file " << file << " was skipped because of incorrect feature dimension";
+                return false;
+              } else if (Caffe::phase() == Caffe::TEST) {
+                LOG(FATAL) << "encounter incorrect feature file dimension in file: " << file;
+              }
+            }
+            if (feature_streams[ix].eof() || h == this->datum_height_ - 1) {
+              feature_streams[ix].close();
+              --num_open_file;
             }
           }
+
           /* for the remaining datum_height greater than binary feature height */
-          if (!read)
+          if (!read) {
             for (int w = 0; w < feature_width; ++w)
-              top_data[w] = 0 - feature_means_[ix][w];
+              top_data[w] = -feature_means_[ix][w];
+          }
 
           top_data += feature_width;
         }
       }
     }
 
-    CHECK(n_open_file == 0) << n_open_file << " files not closed.";
+    CHECK(num_open_file == 0) << num_open_file << " files not closed.";
+    delete[] feature_streams;
   } else
     LOG(FATAL) << "unsupported merge direction";
 

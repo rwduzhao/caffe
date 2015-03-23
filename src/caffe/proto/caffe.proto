@@ -839,6 +839,7 @@ message BinaryDataParameter {
   }
   optional MergeDirection merge_direction = 6;
   repeated BinaryFeatureParameter binary_features = 7;
+  optional float random_start_ratio = 8 [default = 0.0];
 }
 
 message OmniFeatureParameter {
