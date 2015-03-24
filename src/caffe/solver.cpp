@@ -180,6 +180,9 @@ void Solver<Dtype>::Solve(const char* resume_file) {
   vector<Dtype> losses;
   Dtype smoothed_loss = 0;
 
+  if (this->param_.snapshot_at_start() && iter_ == 0)
+    Snapshot();
+
   // For a network that is trained by the solver, no bottom or top vecs
   // should be given, and we will just provide dummy vecs.
   vector<Blob<Dtype>*> bottom_vec;

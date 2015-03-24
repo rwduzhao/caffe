@@ -166,6 +166,7 @@ message SolverParameter {
   // Snapshot if hit remarkable loss
   optional float remarkable_loss = 1001 [default = 0.0001];
   optional float remarkable_loss_factor = 1002 [default = 0.1];
+  optional bool snapshot_at_start = 1003 [default = false];
 }
 
 // A message that stores the solver snapshots
