@@ -355,18 +355,30 @@ void Solver<Dtype>::Snapshot() {
 
 template <typename Dtype>
 void Solver<Dtype>::RemarkableSnapshot() {
+  LOG(INFO) << " Remarkable loss hit (iteration: " << iter_ << " & loss: " << remarkable_loss_ << ")";
+
+  const int kSuffixSize = 100;
+  char suffix[kSuffixSize];
+  snprintf(suffix, kSuffixSize, "_iter_%d.remarkable_%.0e", iter_, remarkable_loss_);
+  string filename(param_.snapshot_prefix());
+  filename += suffix;
+
   NetParameter net_param;
-  // For intermediate results, we will also dump the gradient values.
   net_->ToProto(&net_param, param_.snapshot_diff());
-  const int kBufferSize = 100;
-  char buffer[kBufferSize];
-  snprintf(buffer, kBufferSize, "_iter_%d.remarkable_%.0e", iter_, remarkable_loss_);
-  string model_filename(param_.snapshot_prefix());
-  model_filename += buffer;
-  model_filename += ".caffemodel";
-  LOG(INFO) << "Remarkable snapshotting to " << model_filename
-    << " (iteration: " << iter_ << " & loss: " << remarkable_loss_ << ")";
+  const string model_filename = filename + ".caffemodel";
+  LOG(INFO) << "Remarkable snapshotting model to " << model_filename;
   WriteProtoToBinaryFile(net_param, model_filename.c_str());
+
+  SolverState state;
+  SnapshotSolverState(&state);
+  state.set_iter(iter_);
+  state.set_learned_net(model_filename);
+  state.set_current_step(current_step_);
+  state.set_remarkable_loss(remarkable_loss_);
+  state.set_remarkable_loss_factor(remarkable_loss_factor_);
+  const string snapshot_filename = filename + ".solverstate";
+  LOG(INFO) << "Remarkable napshotting solver state to " << snapshot_filename;
+  WriteProtoToBinaryFile(state, snapshot_filename.c_str());
 }
 
 template <typename Dtype>
