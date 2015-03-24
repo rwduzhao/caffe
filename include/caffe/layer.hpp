@@ -158,6 +158,7 @@ class Layer {
    * @brief Writes the layer parameter to a protocol buffer
    */
   virtual void ToProto(LayerParameter* param, bool write_diff = false);
+  virtual void StructureToProto(LayerParameter* param, bool write_diff = false);
 
   /**
    * @brief Returns the scalar loss associated with a top blob at a given index.
@@ -466,6 +467,14 @@ void Layer<Dtype>::ToProto(LayerParameter* param, bool write_diff) {
   for (int i = 0; i < blobs_.size(); ++i) {
     blobs_[i]->ToProto(param->add_blobs(), write_diff);
   }
+}
+
+// Serialize LayerParameter to protocol buffer
+template <typename Dtype>
+void Layer<Dtype>::StructureToProto(LayerParameter* param, bool write_diff) {
+  param->Clear();
+  param->CopyFrom(layer_param_);
+  param->clear_blobs();
 }
 
 // The layer factory function

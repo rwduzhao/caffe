@@ -338,6 +338,7 @@ void Solver<Dtype>::Snapshot() {
   char iter_str_buffer[kBufferSize];
   snprintf(iter_str_buffer, kBufferSize, "_iter_%d", iter_);
   filename += iter_str_buffer;
+
   model_filename = filename + ".caffemodel";
   LOG(INFO) << "Snapshotting to " << model_filename;
   WriteProtoToBinaryFile(net_param, model_filename.c_str());
@@ -351,6 +352,11 @@ void Solver<Dtype>::Snapshot() {
   snapshot_filename = filename + ".solverstate";
   LOG(INFO) << "Snapshotting solver state to " << snapshot_filename;
   WriteProtoToBinaryFile(state, snapshot_filename.c_str());
+
+  NetParameter net_structure_param;
+  net_->StructureToProto(&net_structure_param, param_.snapshot_diff());
+  WriteProtoToTextFile(net_structure_param, (filename + ".net.prototxt").c_str());
+  WriteProtoToTextFile(this->param_, (filename + ".solver.prototxt").c_str());
 }
 
 template <typename Dtype>
@@ -364,6 +370,10 @@ void Solver<Dtype>::RemarkableSnapshot() {
   filename += suffix;
 
   NetParameter net_param;
+  net_->StructureToProto(&net_param, param_.snapshot_diff());
+  WriteProtoToTextFile(net_param, (filename + ".net.prototxt").c_str());
+  WriteProtoToTextFile(this->param_, (filename + ".solver.prototxt").c_str());
+
   net_->ToProto(&net_param, param_.snapshot_diff());
   const string model_filename = filename + ".caffemodel";
   LOG(INFO) << "Remarkable snapshotting model to " << model_filename;

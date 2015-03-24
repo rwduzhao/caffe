@@ -746,6 +746,27 @@ void Net<Dtype>::ToProto(NetParameter* param, bool write_diff) {
 }
 
 template <typename Dtype>
+void Net<Dtype>::StructureToProto(NetParameter* param, bool write_diff) {
+  param->Clear();
+  param->set_name(name_);
+  // Add bottom and top
+  for (int i = 0; i < net_input_blob_indices_.size(); ++i) {
+    param->add_input(blob_names_[net_input_blob_indices_[i]]);
+  }
+  DLOG(INFO) << "Serializing " << layers_.size() << " layers";
+  for (int i = 0; i < layers_.size(); ++i) {
+    LayerParameter* layer_param = param->add_layers();
+    for (int j = 0; j < bottom_id_vecs_[i].size(); ++j) {
+      layer_param->add_bottom(blob_names_[bottom_id_vecs_[i][j]]);
+    }
+    for (int j = 0; j < top_id_vecs_[i].size(); ++j) {
+      layer_param->add_top(blob_names_[top_id_vecs_[i][j]]);
+    }
+    layers_[i]->StructureToProto(layer_param, write_diff);
+  }
+}
+
+template <typename Dtype>
 void Net<Dtype>::Update() {
   // First, accumulate the diffs of any shared parameters into their owner's
   // diff. (Assumes that the learning rate, weight decay, etc. have already been
