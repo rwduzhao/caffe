@@ -69,9 +69,11 @@ int main(int argc, char** argv) {
   for (int file_id = 0; file_id < outfile_names.size(); ++file_id) {
     const unsigned int blob_feature_size = net->blob_by_name(blob_names[file_id])->offset(1) * sizeof(float);
     const string outfile_name = outfile_prefix + outfile_names[file_id];
-    LOG(INFO) << "extracting blob [" << blob_names[file_id] << "] into " << outfile_name
-      << " (estimated file size: " << num_instance * blob_feature_size << " B"
-      << " or " << num_instance * blob_feature_size / 1024.0 / 1024.0 << " M)";
+    LOG(INFO) << "extracting blob [" << blob_names[file_id] << "] into " << outfile_name;
+    LOG(INFO) << "  this blob has a feature size of " << net->blob_by_name(blob_names[file_id])->offset(1) << " dimesion";
+    LOG(INFO) << "  estimated output file size: "
+      << num_instance * blob_feature_size << " B" << " or "
+      << num_instance * blob_feature_size / 1024.0 / 1024.0 << " M";
     outfiles[file_id].open(outfile_name.c_str(), std::ios::binary);
   }
 
