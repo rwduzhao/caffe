@@ -211,7 +211,8 @@ void Solver<Dtype>::Solve(const char* resume_file) {
       losses[idx] = loss;
     }
 
-    if (smoothed_loss <= remarkable_loss_ * remarkable_loss_factor_) {
+    if (smoothed_loss * remarkable_loss_ >= 0 &&
+        smoothed_loss <= remarkable_loss_ * remarkable_loss_factor_) {
       remarkable_loss_ = smoothed_loss;
       RemarkableSnapshot();
     }
@@ -390,7 +391,7 @@ void Solver<Dtype>::RemarkableSnapshot() {
   state.set_remarkable_loss(remarkable_loss_);
   state.set_remarkable_loss_factor(remarkable_loss_factor_);
   const string snapshot_filename = filename + ".solverstate";
-  LOG(INFO) << "Remarkable napshotting solver state to " << snapshot_filename;
+  LOG(INFO) << "Remarkable snapshotting solver state to " << snapshot_filename;
   WriteProtoToBinaryFile(state, snapshot_filename.c_str());
 }
 
