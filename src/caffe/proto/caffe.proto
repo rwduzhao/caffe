@@ -277,6 +277,7 @@ message LayerParameter {
     THRESHOLD = 31;
     BINARY_DATA = 1001;
     OMNI_DATA = 1002;
+    STACKED_IMAGE_DATA = 1003;
   }
   optional LayerType type = 5; // the layer type from the enum above
 
@@ -334,6 +335,7 @@ message LayerParameter {
   optional WindowDataParameter window_data_param = 20;
   optional BinaryDataParameter binary_data_param = 1101;
   optional OmniDataParameter omni_data_param = 1102;
+  optional StackedImageDataParameter stacked_image_data_param = 1003;
 
   // Parameters for data pre-processing.
   optional TransformationParameter transform_param = 36;
@@ -867,4 +869,27 @@ message OmniDataParameter {
   optional uint32 skip_line = 4 [default = 0];
   optional uint32 skip_group = 5 [default = 0];
   optional uint32 skip_line_in_group = 6 [default = 0];
+}
+
+message StackedImageDataParameter {
+  optional string source = 1;
+  optional string source_item_prefix = 2 [default = ""];
+  optional string stacked_image_prefix = 3 [default = ""];
+  optional uint32 batch_size = 4;
+  enum ImageColor {
+    GRAY = 0;
+    RGB = 1;
+  }
+  optional ImageColor image_color = 5 [default = GRAY];
+  optional uint32 num_stack = 6;
+  // The rand_skip variable is for the data layer to skip a few data points
+  // to avoid all asynchronous sgd clients to start at the same point. The skip
+  // point would be set as rand_skip * rand(0,1). Note that rand_skip should not
+  // be larger than the number of keys in the leveldb.
+  optional uint32 rand_skip = 7 [default = 0];
+  // Whether or not ImageLayer should shuffle the list of files at every epoch.
+  optional bool shuffle = 8 [default = false];
+  // It will also resize images if new_height or new_width are not zero.
+  optional uint32 new_height = 9 [default = 0];
+  optional uint32 new_width = 10 [default = 0];
 }

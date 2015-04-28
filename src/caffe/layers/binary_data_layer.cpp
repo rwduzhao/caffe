@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "caffe/data_layers.hpp"
+#include "caffe/data_layers_extra.hpp"
 #include "caffe/layer.hpp"
 #include "caffe/util/io.hpp"
 #include "caffe/util/math_functions.hpp"
@@ -43,20 +44,20 @@ void BinaryDataLayer<Dtype>::CheckFeatureSizeIntegrity() {
 
 template <typename Dtype>
 void BinaryDataLayer<Dtype>::ReadSourceListToLines() {
-  const string & source = this->layer_param_.binary_data_param().source();
-  lines_.clear();
+  const string & source = this->layer_param_.stacked_image_data_param().source();
 
   LOG(INFO) << "opening souce file (filename + label): " << source;
   std::ifstream infile(source.c_str());
   CHECK(infile.good()) << "could not open source file (filename + label): " << source;
 
+  lines_.clear();
   string filename;
   int label;
   while (infile >> filename >> label)
     lines_.push_back(std::make_pair(filename, label));
 
-  LOG(INFO) << "a total number of " << lines_.size() << " files.";
   CHECK(!lines_.empty()) << "file list is empty (filename: \"" + source + "\")";
+  LOG(INFO) << "a total number of " << lines_.size() << " items in the source file";
 }
 
 template <typename Dtype>

@@ -253,6 +253,8 @@ Layer<Dtype>* GetLayer(const LayerParameter& param) {
     return new WindowDataLayer<Dtype>(param);
   case LayerParameter_LayerType_BINARY_DATA:
     return new BinaryDataLayer<Dtype>(param);
+  case LayerParameter_LayerType_STACKED_IMAGE_DATA:
+    return new StackedImageDataLayer<Dtype>(param);
   case LayerParameter_LayerType_NONE:
     LOG(FATAL) << "Layer " << name << " has unspecified type.";
   default:
