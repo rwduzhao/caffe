@@ -13,6 +13,7 @@
 #include "caffe/data_layers_extra.hpp"
 #include "caffe/layer.hpp"
 #include "caffe/util/io.hpp"
+#include "caffe/util/io_extra.hpp"
 #include "caffe/util/math_functions.hpp"
 #include "caffe/util/rng.hpp"
 #include <boost/random.hpp>
@@ -150,11 +151,8 @@ bool StackedImageDataLayer<Dtype>::ReadSourceToTop(const int lines_id, const int
   datum.set_label(label);
   datum.clear_data();
   datum.clear_float_data();
-  string *datum_string = datum.mutable_data();
 
-  // read images into single image datum and then merge into datum
-  Datum single_image_datum;
-  int data_count = 0;
+  // read images into datum
   for (int image_ix = 0; image_ix < stacked_image_files.size(); ++image_ix) {
     const string stacked_image_prefix = this->layer_param_.stacked_image_data_param().stacked_image_prefix();
     const string image_path = stacked_image_prefix + stacked_image_files[image_ix];
@@ -162,17 +160,10 @@ bool StackedImageDataLayer<Dtype>::ReadSourceToTop(const int lines_id, const int
     const int new_width = this->layer_param_.stacked_image_data_param().new_width();
     const int image_color = this->layer_param_.stacked_image_data_param().image_color();
     const bool is_color = image_color != StackedImageDataParameter_ImageColor_GRAY;
-    LOG(INFO) << image_path;
-    ReadImageToDatum(image_path, label, new_height, new_width, is_color, &single_image_datum);
-
-    const string &single_image_data = single_image_datum.data();
-    const int single_datum_size = single_image_datum.channels() * single_image_datum.height() * single_image_datum.width();
-    for (int single_data_ix = 0; single_data_ix < single_datum_size; ++single_data_ix) {
-      datum_string->push_back(single_image_data[single_data_ix]);
-      ++data_count;
-    }
+    ReadImageToPrespecifiedDatum(image_path, label, new_height, new_width, is_color, &datum);
   }
-  CHECK(data_count == datum.channels() * datum.height() * datum.width());
+  string *datum_string = datum.mutable_data();
+  CHECK(datum_string->length() == datum.channels() * datum.height() * datum.width());
   Dtype* top_data = this->prefetch_data_.mutable_cpu_data();
   this->data_transformer_.Transform(batch_item_id, datum, this->mean_, top_data);
 
