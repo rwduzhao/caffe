@@ -164,7 +164,7 @@ message SolverParameter {
   optional bool snapshot_after_train = 28 [default = true];
 
   // Snapshot if hit remarkable loss
-  optional float remarkable_loss = 1001 [default = 0.0001];
+  optional float remarkable_loss = 1001 [default = 0];
   optional float remarkable_loss_factor = 1002 [default = 0.1];
   optional bool snapshot_at_start = 1003 [default = false];
 }
@@ -541,6 +541,7 @@ message ImageDataParameter {
   // DEPRECATED. See TransformationParameter. Specify if we want to randomly mirror
   // data.
   optional bool mirror = 6 [default = false];
+  optional string source_item_prefix = 1001 [default = ""];
 }
 
 // Message that stores parameters InfogainLossLayer

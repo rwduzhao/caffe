@@ -211,7 +211,7 @@ void Solver<Dtype>::Solve(const char* resume_file) {
       losses[idx] = loss;
     }
 
-    if (smoothed_loss * remarkable_loss_ >= 0 &&
+    if (smoothed_loss >=0 && remarkable_loss_ > 0 &&
         smoothed_loss <= remarkable_loss_ * remarkable_loss_factor_) {
       remarkable_loss_ = smoothed_loss;
       RemarkableSnapshot();
