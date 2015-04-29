@@ -60,7 +60,8 @@ void ImageDataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bottom,
       << "Image list is empty (filename: \"" + source + "\")";
   // Read a data point, and use it to initialize the top blob.
   Datum datum;
-  CHECK(ReadImageToDatum(lines_[lines_id_].first, lines_[lines_id_].second,
+  const string image_path = this->layer_param_.image_data_param().source_item_prefix() + lines_[lines_id_].first;
+  CHECK(ReadImageToDatum(image_path, lines_[lines_id_].second,
                          new_height, new_width, &datum));
   // image
   const int crop_size = this->layer_param_.transform_param().crop_size();
@@ -112,7 +113,8 @@ void ImageDataLayer<Dtype>::InternalThreadEntry() {
   for (int item_id = 0; item_id < batch_size; ++item_id) {
     // get a blob
     CHECK_GT(lines_size, lines_id_);
-    if (!ReadImageToDatum(lines_[lines_id_].first,
+    const string image_path = this->layer_param_.image_data_param().source_item_prefix() + lines_[lines_id_].first;
+    if (!ReadImageToDatum(image_path,
           lines_[lines_id_].second,
           new_height, new_width, &datum)) {
       continue;
