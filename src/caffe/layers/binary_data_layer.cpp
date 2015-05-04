@@ -44,7 +44,7 @@ void BinaryDataLayer<Dtype>::CheckFeatureSizeIntegrity() {
 
 template <typename Dtype>
 void BinaryDataLayer<Dtype>::ReadSourceListToLines() {
-  const string & source = this->layer_param_.stacked_image_data_param().source();
+  const string & source = this->layer_param_.binary_data_param().source();
 
   LOG(INFO) << "opening souce file (filename + label): " << source;
   std::ifstream infile(source.c_str());
