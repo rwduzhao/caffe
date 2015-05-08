@@ -156,10 +156,10 @@ bool BinaryDataLayer<Dtype>::ReadBinariesToTop(const int lines_id, const int bat
             --num_open_file;
           }
         }
-        if (Caffe::phase() == Caffe::TRAIN) {
+        if (Phase() == TRAIN) {
           LOG(ERROR) << "file " << file << " was skipped because it could not be opened";
           return false;
-        } else if (Caffe::phase() == Caffe::TEST) {
+        } else if (Phase() == TEST) {
           LOG(FATAL) << "errno: " << errno << "; could not open feature file : " << file;
         }
       }
@@ -213,10 +213,10 @@ bool BinaryDataLayer<Dtype>::ReadBinariesToTop(const int lines_id, const int bat
                 }
               }
               const string file = this->layer_param_.binary_data_param().binary_features(ix).root_dir() + "/" + feature_files_[ix][lines_id];
-              if (Caffe::phase() == Caffe::TRAIN) {
+              if (Phase() == TRAIN) {
                 LOG(ERROR) << "file " << file << " was skipped because of incorrect feature dimension";
                 return false;
-              } else if (Caffe::phase() == Caffe::TEST) {
+              } else if (Phase() == TEST) {
                 LOG(FATAL) << "encounter incorrect feature file dimension in file: " << file;
               }
             }
@@ -257,7 +257,8 @@ BinaryDataLayer<Dtype>::~BinaryDataLayer<Dtype>() {
 }
 
 template <typename Dtype>
-void BinaryDataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bottom, vector<Blob<Dtype>*>* top) {
+void BinaryDataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bottom,
+      const vector<Blob<Dtype>*>& top) {
   CheckFeatureSizeIntegrity();
   ReadSourceListToLines();
   ReadFeatureFiles();
@@ -268,12 +269,13 @@ void BinaryDataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bottom, 
   SetDatumSize();
   const int batch_size = this->layer_param_.binary_data_param().batch_size();
 
-  (*top)[0]->Reshape(batch_size, this->datum_channels_, this->datum_height_, this->datum_width_);
-  LOG(INFO) << "output data size: " << (*top)[0]->num() << "," << (*top)[0]->channels() << "," << (*top)[0]->height() << "," << (*top)[0]->width();
+  top[0]->Reshape(batch_size, this->datum_channels_, this->datum_height_, this->datum_width_);
+  LOG(INFO) << "output data size: " << top[0]->num() << "," << top[0]->channels() << "," << top[0]->height() << "," << top[0]->width();
   this->prefetch_data_.Reshape(batch_size, this->datum_channels_, this->datum_height_, this->datum_width_);
 
-  (*top)[1]->Reshape(batch_size, 1, 1, 1);
-  this->prefetch_label_.Reshape(batch_size, 1, 1, 1);
+  const vector<int> label_shape(1, batch_size);
+  top[1]->Reshape(label_shape);
+  this->prefetch_label_.Reshape(label_shape);
 
   if (this->layer_param_.binary_data_param().shuffle()) {
     LOG(INFO) << "shuffling data";
@@ -308,5 +310,6 @@ void BinaryDataLayer<Dtype>::InternalThreadEntry() {
 }
 
 INSTANTIATE_CLASS(BinaryDataLayer);
+REGISTER_LAYER_CLASS(BinaryData);
 
 }  // namespace caffe

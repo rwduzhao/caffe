@@ -19,7 +19,8 @@ OmniDataLayer<Dtype>::~OmniDataLayer<Dtype>() {
 }
 
 template <typename Dtype>
-void OmniDataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bottom, vector<Blob<Dtype>*>* top) {
+void OmniDataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bottom,
+      const vector<Blob<Dtype>*>& top) {
 }
 
 // this function is used to create a thread that prefetches the data.
@@ -28,5 +29,6 @@ void OmniDataLayer<Dtype>::InternalThreadEntry() {
 }
 
 INSTANTIATE_CLASS(OmniDataLayer);
+REGISTER_LAYER_CLASS(OmniData);
 
 }  // namespace caffe

@@ -12,6 +12,7 @@
 #include "caffe/data_layers.hpp"
 #include "caffe/data_layers_extra.hpp"
 #include "caffe/layer.hpp"
+#include "caffe/util/benchmark.hpp"
 #include "caffe/util/io.hpp"
 #include "caffe/util/io_extra.hpp"
 #include "caffe/util/math_functions.hpp"
@@ -29,7 +30,8 @@ StackedImageDataLayer<Dtype>::~StackedImageDataLayer<Dtype>() {
 }
 
 template <typename Dtype>
-void StackedImageDataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bottom, vector<Blob<Dtype>*>* top) {
+void StackedImageDataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bottom,
+      const vector<Blob<Dtype>*>& top) {
   ReadSourceListToLines();
 
   SetDatumSize();
@@ -38,19 +40,22 @@ void StackedImageDataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bo
   const int batch_size = this->layer_param_.stacked_image_data_param().batch_size();
   const int crop_size = this->layer_param_.transform_param().crop_size();
   if (crop_size > 0) {
-    (*top)[0]->Reshape(batch_size, this->datum_channels_, crop_size, crop_size);
+    top[0]->Reshape(batch_size, this->datum_channels_, crop_size, crop_size);
     this->prefetch_data_.Reshape(batch_size, this->datum_channels_, crop_size, crop_size);
+    this->transformed_data_.Reshape(1, this->datum_channels_, crop_size, crop_size);
   } else {
-    (*top)[0]->Reshape(batch_size, this->datum_channels_, this->datum_height_, this->datum_width_);
+    top[0]->Reshape(batch_size, this->datum_channels_, this->datum_height_, this->datum_width_);
     this->prefetch_data_.Reshape(batch_size, this->datum_channels_, this->datum_height_, this->datum_width_);
+    this->transformed_data_.Reshape(1, this->datum_channels_, this->datum_height_, this->datum_width_);
   }
-  LOG(INFO) << "output data size: "
-    << (*top)[0]->num() << "," << (*top)[0]->channels() << ","
-    << (*top)[0]->height() << "," << (*top)[0]->width();
+  LOG(INFO) << "output data size: " << top[0]->num() << ","
+    << top[0]->channels() << "," << top[0]->height() << ","
+    << top[0]->width();
 
   // set top label size
-  (*top)[1]->Reshape(batch_size, 1, 1, 1);
-  this->prefetch_label_.Reshape(batch_size, 1, 1, 1);
+  const vector<int> label_shape(1, batch_size);
+  top[1]->Reshape(label_shape);
+  this->prefetch_label_.Reshape(label_shape);
 
   // shuffle data order
   if (this->layer_param_.stacked_image_data_param().shuffle()) {
@@ -125,8 +130,8 @@ void StackedImageDataLayer<Dtype>::ShuffleLines() {
 template <typename Dtype>
 bool StackedImageDataLayer<Dtype>::ReadSourceToTop(const int lines_id, const int batch_item_id) {
   // label
-  const int label = lines_[lines_id].second;
   Dtype* top_label = this->prefetch_label_.mutable_cpu_data();
+  const int label = lines_[lines_id].second;
   top_label[batch_item_id] = label;
 
   // read stacked image files list from source line
@@ -164,12 +169,15 @@ bool StackedImageDataLayer<Dtype>::ReadSourceToTop(const int lines_id, const int
   }
   string *datum_string = datum.mutable_data();
   CHECK(datum_string->length() == datum.channels() * datum.height() * datum.width());
-  Dtype* top_data = this->prefetch_data_.mutable_cpu_data();
-  this->data_transformer_.Transform(batch_item_id, datum, this->mean_, top_data);
+  Dtype* prefetch_data = this->prefetch_data_.mutable_cpu_data();
+  const int offset = this->prefetch_data_.offset(batch_item_id);
+  this->transformed_data_.set_cpu_data(prefetch_data + offset);
+  this->data_transformer_->Transform(datum, &(this->transformed_data_));
 
   return true;
 }
 
 INSTANTIATE_CLASS(StackedImageDataLayer);
+REGISTER_LAYER_CLASS(StackedImageData);
 
 }  // namespace caffe

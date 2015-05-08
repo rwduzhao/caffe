@@ -39,19 +39,18 @@ int main(int argc, char** argv) {
   } else {
     Caffe::set_mode(Caffe::CPU);
   }
-  Caffe::set_phase(Caffe::TEST);
 
   /* net param and model */
   const string net_param_file = FLAGS_net;
-  shared_ptr<Net<float> > net(new Net<float>(net_param_file));
+  Net<float> net(net_param_file, caffe::TEST);
   const string model_file = FLAGS_model;
-  net->CopyTrainedLayersFrom(model_file);
+  net.CopyTrainedLayersFrom(model_file);
 
   /* blob names */
   vector<string> blob_names;
   boost::split(blob_names, FLAGS_blob, boost::is_any_of(","));
   for (int ix = 0; ix < blob_names.size(); ++ix)
-    CHECK(net->has_blob(blob_names[ix])) << "blob name not found: " << blob_names[ix];
+    CHECK(net.has_blob(blob_names[ix])) << "blob name not found: " << blob_names[ix];
 
   /* output files */
   vector<string> outfile_names;
@@ -67,10 +66,10 @@ int main(int argc, char** argv) {
   const std::string outfile_prefix = FLAGS_prefix;
   std::ofstream * outfiles = new std::ofstream[outfile_names.size()];
   for (int file_id = 0; file_id < outfile_names.size(); ++file_id) {
-    const unsigned int blob_feature_size = net->blob_by_name(blob_names[file_id])->offset(1) * sizeof(float);
+    const unsigned int blob_feature_size = net.blob_by_name(blob_names[file_id])->offset(1) * sizeof(float);
     const string outfile_name = outfile_prefix + outfile_names[file_id];
     LOG(INFO) << "extracting blob [" << blob_names[file_id] << "] into " << outfile_name;
-    LOG(INFO) << "  this blob has a feature size of " << net->blob_by_name(blob_names[file_id])->offset(1) << " dimesion";
+    LOG(INFO) << "  this blob has a feature size of " << net.blob_by_name(blob_names[file_id])->offset(1) << " dimesion";
     LOG(INFO) << "  estimated output file size: "
       << num_instance * blob_feature_size << " B" << " or "
       << num_instance * blob_feature_size / 1024.0 / 1024.0 << " M";
@@ -80,15 +79,15 @@ int main(int argc, char** argv) {
   /* forward net and extract blob data */
   const unsigned long int display_interval = FLAGS_disp;
   unsigned long int instance_count = 0;
-  unsigned long int batch_size = net->blob_by_name(blob_names[0])->num();
+  unsigned long int batch_size = net.blob_by_name(blob_names[0])->num();
   vector<Blob<float>*> input_vec;
   while (instance_count < num_instance) {
-    net->Forward(input_vec);
+    net.Forward(input_vec);
     if (num_instance - instance_count < batch_size)
       batch_size = num_instance - instance_count;
     for (long unsigned int item_id = 0; item_id < batch_size; ++item_id) {
       for (int blob_id = 0; blob_id < blob_names.size(); ++blob_id) {
-        const shared_ptr<Blob<float> > feature_blob = net->blob_by_name(blob_names[blob_id]);
+        const shared_ptr<Blob<float> > feature_blob = net.blob_by_name(blob_names[blob_id]);
         float * feature_blob_data = feature_blob->mutable_cpu_data() + feature_blob->offset(item_id);
         const unsigned int blob_feature_size = feature_blob->offset(1) * sizeof(float);
         outfiles[blob_id].write(reinterpret_cast<char *>(feature_blob_data), blob_feature_size);

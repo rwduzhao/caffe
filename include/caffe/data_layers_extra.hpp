@@ -7,8 +7,6 @@
 
 #include "boost/scoped_ptr.hpp"
 #include "hdf5.h"
-#include "leveldb/db.h"
-#include "lmdb.h"
 
 #include "caffe/blob.hpp"
 #include "caffe/common.hpp"
@@ -16,7 +14,9 @@
 #include "caffe/filler.hpp"
 #include "caffe/internal_thread.hpp"
 #include "caffe/layer.hpp"
+#include "caffe/net.hpp"
 #include "caffe/proto/caffe.pb.h"
+#include "caffe/util/db.hpp"
 #include "caffe/data_layers.hpp"
 
 namespace caffe {
@@ -28,16 +28,19 @@ class BinaryDataLayer : public BasePrefetchingDataLayer<Dtype> {
       : BasePrefetchingDataLayer<Dtype>(param) {}
   virtual ~BinaryDataLayer();
   virtual void DataLayerSetUp(const vector<Blob<Dtype>*>& bottom,
-      vector<Blob<Dtype>*>* top);
+      const vector<Blob<Dtype>*>& top);
 
-  virtual inline LayerParameter_LayerType type() const {
-    return LayerParameter_LayerType_BINARY_DATA;
-  }
+  virtual inline const char* type() const { return "BinaryData"; }
   virtual inline int ExactNumBottomBlobs() const { return 0; }
   virtual inline int ExactNumTopBlobs() const { return 2; }
 
  protected:
   shared_ptr<Caffe::RNG> prefetch_rng_;
+  int datum_channels_;
+  int datum_height_;
+  int datum_width_;
+  int datum_size_;
+
   virtual void ShuffleBinarys();
   virtual void InternalThreadEntry();
 
@@ -64,9 +67,10 @@ class OmniDataLayer : public BasePrefetchingDataLayer<Dtype> {
   explicit OmniDataLayer(const LayerParameter& param)
     : BasePrefetchingDataLayer<Dtype>(param) {}
   virtual ~OmniDataLayer();
-  virtual void DataLayerSetUp(const vector<Blob<Dtype>*>& bottom, vector<Blob<Dtype>*>* top);
+  virtual void DataLayerSetUp(const vector<Blob<Dtype>*>& bottom,
+      const vector<Blob<Dtype>*>& top);
 
-  virtual inline LayerParameter_LayerType type() const { return LayerParameter_LayerType_OMNI_DATA; }
+  virtual inline const char* type() const { return "OmniData"; }
   virtual inline int ExactNumBottomBlobs() const { return 0; }
   virtual inline int ExactNumTopBlobs() const { return 2; }
 
@@ -87,16 +91,19 @@ class StackedImageDataLayer : public BasePrefetchingDataLayer<Dtype> {
       : BasePrefetchingDataLayer<Dtype>(param) {}
   virtual ~StackedImageDataLayer();
   virtual void DataLayerSetUp(const vector<Blob<Dtype>*>& bottom,
-      vector<Blob<Dtype>*>* top);
+      const vector<Blob<Dtype>*>& top);
 
-  virtual inline LayerParameter_LayerType type() const {
-    return LayerParameter_LayerType_BINARY_DATA;
-  }
+  virtual inline const char* type() const { return "StackedImageData"; }
   virtual inline int ExactNumBottomBlobs() const { return 0; }
   virtual inline int ExactNumTopBlobs() const { return 2; }
 
  protected:
   shared_ptr<Caffe::RNG> prefetch_rng_;
+  int datum_channels_;
+  int datum_height_;
+  int datum_width_;
+  int datum_size_;
+
   virtual void ShuffleLines();
   virtual void InternalThreadEntry();
 
@@ -109,6 +116,7 @@ class StackedImageDataLayer : public BasePrefetchingDataLayer<Dtype> {
   vector<Dtype *> feature_means_;
   int lines_id_;
 };
+
 
 }  // namespace caffe
 
