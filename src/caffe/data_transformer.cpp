@@ -23,6 +23,8 @@ DataTransformer<Dtype>::DataTransformer(const TransformationParameter& param,
     BlobProto blob_proto;
     ReadProtoFromBinaryFileOrDie(mean_file.c_str(), &blob_proto);
     data_mean_.FromProto(blob_proto);
+    LOG(INFO) << "data mean size: " << data_mean_.channels() << " "
+      << data_mean_.height()  << " " << data_mean_.width();
   }
   // check if we want to use mean_value
   if (param_.mean_value_size() > 0) {
