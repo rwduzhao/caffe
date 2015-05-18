@@ -18,7 +18,6 @@
 
 DEFINE_int32(gpu, 0, "gpu device");
 DEFINE_string(blob, "", "blob names to be extracted");
-DEFINE_string(data, "", "data proto");
 DEFINE_string(model, "", "trained model file");
 DEFINE_string(net, "", "net prototxt file");
 DEFINE_string(outfile, "", "output file");
