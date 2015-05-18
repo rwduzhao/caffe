@@ -3,7 +3,6 @@
 
 #include "caffe/data_layers.hpp"
 #include "caffe/data_layers_extra.hpp"
-#include "caffe/net.hpp"
 #include "caffe/util/io.hpp"
 
 namespace caffe {
