@@ -48,9 +48,6 @@ void StackedImageDataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bo
     this->prefetch_data_.Reshape(batch_size, this->datum_channels_, this->datum_height_, this->datum_width_);
     this->transformed_data_.Reshape(1, this->datum_channels_, this->datum_height_, this->datum_width_);
   }
-  LOG(INFO) << "output data size: " << top[0]->num() << ","
-    << top[0]->channels() << "," << top[0]->height() << ","
-    << top[0]->width();
 
   // set top label size
   const vector<int> label_shape(1, batch_size);
@@ -165,10 +162,17 @@ bool StackedImageDataLayer<Dtype>::ReadSourceToTop(const int lines_id, const int
     const int new_width = this->layer_param_.stacked_image_data_param().new_width();
     const int image_color = this->layer_param_.stacked_image_data_param().image_color();
     const bool is_color = image_color != StackedImageDataParameter_ImageColor_GRAY;
-    ReadImageToPrespecifiedDatum(image_path, label, new_height, new_width, is_color, &datum);
+    if (!ReadImageToPrespecifiedDatum(image_path, label, new_height, new_width, is_color, &datum)) {
+      const int num_channels = (is_color ? 3 : 1);
+      string *datum_string = datum.mutable_data();
+      for (int ix = 0; ix < num_channels * new_height * new_width; ++ix)
+        datum_string->push_back(static_cast<char>(0));
+    }
   }
   string *datum_string = datum.mutable_data();
-  CHECK(datum_string->length() == datum.channels() * datum.height() * datum.width());
+  CHECK(datum_string->length() == datum.channels() * datum.height() * datum.width())
+    << datum_string->length() << " vs " << datum.channels() << " " << datum.height() << " " << datum.width()
+    << " = " << datum.channels() * datum.height() * datum.width();
   Dtype* prefetch_data = this->prefetch_data_.mutable_cpu_data();
   const int offset = this->prefetch_data_.offset(batch_item_id);
   this->transformed_data_.set_cpu_data(prefetch_data + offset);
