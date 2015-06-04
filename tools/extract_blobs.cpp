@@ -8,8 +8,10 @@
 #   LastChange: 2015-03-24 23:44:23
 #      History:
 =============================================================================*/
-#include <boost/algorithm/string.hpp>
+#ifndef CPU_ONLY
 #include <cuda_runtime.h>
+#endif
+#include <boost/algorithm/string.hpp>
 #include <fstream>
 #include <gflags/gflags.h>
 #include <string>
