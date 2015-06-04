@@ -155,7 +155,8 @@ bool StackedImageDataLayer<Dtype>::ReadSourceToTop(const int lines_id, const int
   datum.clear_float_data();
 
   // read images into datum
-  for (int image_ix = 0; image_ix < stacked_image_files.size(); ++image_ix) {
+  const int num_stack = this->layer_param_.stacked_image_data_param().num_stack();
+  for (int image_ix = 0; image_ix < std::min((int)stacked_image_files.size(), num_stack); ++image_ix) {
     const string stacked_image_prefix = this->layer_param_.stacked_image_data_param().stacked_image_prefix();
     const string image_path = stacked_image_prefix + stacked_image_files[image_ix];
     const int new_height = this->layer_param_.stacked_image_data_param().new_height();
