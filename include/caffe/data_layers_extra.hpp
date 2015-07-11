@@ -117,6 +117,61 @@ class StackedImageDataLayer : public BasePrefetchingDataLayer<Dtype> {
   int lines_id_;
 };
 
+template <typename Dtype>
+class ZteImageDataLayer : public BasePrefetchingDataLayer<Dtype> {
+ public:
+  explicit ZteImageDataLayer(const LayerParameter& param)
+      : BasePrefetchingDataLayer<Dtype>(param) {}
+  virtual ~ZteImageDataLayer();
+  virtual void DataLayerSetUp(const vector<Blob<Dtype>*>& bottom,
+      const vector<Blob<Dtype>*>& top);
+
+  virtual inline const char* type() const { return "ZteImageData"; }
+  virtual inline int ExactNumBottomBlobs() const { return 0; }
+  virtual inline int ExactNumTopBlobs() const { return 2; }
+
+ protected:
+  shared_ptr<Caffe::RNG> prefetch_rng_;
+  virtual void ShuffleImages();
+  virtual void InternalThreadEntry();
+
+  vector<std::pair<std::string, int> > lines_;
+  int lines_id_;
+};
+
+template <typename Dtype>
+class ZteStackedImageDataLayer : public BasePrefetchingDataLayer<Dtype> {
+ public:
+  explicit ZteStackedImageDataLayer(const LayerParameter& param)
+      : BasePrefetchingDataLayer<Dtype>(param) {}
+  virtual ~ZteStackedImageDataLayer();
+  virtual void DataLayerSetUp(const vector<Blob<Dtype>*>& bottom,
+      const vector<Blob<Dtype>*>& top);
+
+  virtual inline const char* type() const { return "ZteStackedImageData"; }
+  virtual inline int ExactNumBottomBlobs() const { return 0; }
+  virtual inline int ExactNumTopBlobs() const { return 2; }
+
+ protected:
+  shared_ptr<Caffe::RNG> prefetch_rng_;
+  int datum_channels_;
+  int datum_height_;
+  int datum_width_;
+  int datum_size_;
+
+  virtual void ShuffleLines();
+  virtual void InternalThreadEntry();
+
+  virtual void ReadSourceListToLines();
+  virtual void SetDatumSize();
+  virtual bool ReadSourceToTop(const int lines_id, const int batch_item_id);
+
+  vector<std::pair<std::string, int> > lines_;  // data name, label
+  vector<vector<std::string> > feature_files_;  // feature sizes, feature file names
+  vector<Dtype *> feature_means_;
+  int lines_id_;
+};
+
 
 }  // namespace caffe
 
