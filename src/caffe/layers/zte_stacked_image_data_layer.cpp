@@ -129,7 +129,7 @@ bool ZteStackedImageDataLayer<Dtype>::ReadSourceToTop(const int lines_id, const 
   // label
   Dtype* top_label = this->prefetch_label_.mutable_cpu_data();
   const int label = lines_[lines_id].second;
-  top_label[batch_item_id] = label;
+  top_label[batch_item_id] = std::max(0, label);
 
   // read stacked image files list from source line
   const string source_item_prefix = this->layer_param_.zte_stacked_image_data_param().source_item_prefix();

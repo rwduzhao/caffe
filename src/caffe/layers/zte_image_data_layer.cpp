@@ -148,6 +148,8 @@ void ZteImageDataLayer<Dtype>::InternalThreadEntry() {
       double scale = 0.0;
       ZteCropBackground(root_folder + lines_[lines_id_].first, cv_img, 360, 360,
                         x0, y0, diff_x, diff_y, scale);
+    } else if (lines_[lines_id_].second == -1) {
+      ZteCropCenteredPerson(root_folder + lines_[lines_id_].first, cv_img);
     } else {
       ZteCropPerson(root_folder + lines_[lines_id_].first, cv_img);
     }
@@ -162,7 +164,7 @@ void ZteImageDataLayer<Dtype>::InternalThreadEntry() {
     this->data_transformer_->Transform(cv_img, &(this->transformed_data_));
     trans_time += timer.MicroSeconds();
 
-    prefetch_label[item_id] = lines_[lines_id_].second;
+    prefetch_label[item_id] = std::max(0, lines_[lines_id_].second);
     // go to the next iter
     lines_id_++;
     if (lines_id_ >= lines_size) {

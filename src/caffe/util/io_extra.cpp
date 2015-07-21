@@ -86,6 +86,42 @@ bool ZteCropBackground(const string image_file, cv::Mat &image,
   return true;
 }
 
+bool ZteCropCenteredPerson(const string image_file, cv::Mat &image) {
+  try {
+    image = cv::imread(image_file.c_str());
+  } catch(cv::Exception& e) {
+    const char* err_msg = e.what();
+    LOG(ERROR) << "exception caught: " << err_msg << std::endl;
+    image.create(360, 360, CV_8UC3);
+    image.setTo(cv::Scalar(104.0, 117.0, 124.0));
+    return false;
+  }
+
+  boost::mt19937 *rng = new boost::mt19937();
+  rng->seed(time(NULL));
+  boost::normal_distribution<> distribution(0.67, 0.1);
+  boost::variate_generator< boost::mt19937, boost::normal_distribution<> > dist(*rng, distribution);
+  const double scale = 0.67;
+
+  const int height = image.rows;
+  const int width = image.cols;
+  const int size_limit = std::min(height, width) - 1;
+
+  const int scaled_height = std::min((int)(scale * height), size_limit);
+  const int scaled_width = std::min((int)(scale * width), size_limit);
+
+  const int height_center = height / 2;
+  const int width_center = width / 2;
+  const int x0 = width_center - scaled_width / 2;
+  const int y0 = height_center - scaled_height / 2;
+
+  image = image(cv::Rect(x0, y0, scaled_width, scaled_height));
+
+  delete rng;
+
+  return true;
+}
+
 bool ZteCropPerson(const string image_file, cv::Mat &image) {
   try {
     image = cv::imread(image_file.c_str());
@@ -101,7 +137,7 @@ bool ZteCropPerson(const string image_file, cv::Mat &image) {
   rng->seed(time(NULL));
   boost::normal_distribution<> distribution(0.67, 0.1);
   boost::variate_generator< boost::mt19937, boost::normal_distribution<> > dist(*rng, distribution);
-  const double scale = std::min(std::max(0.60, dist()), 1.5);
+  const double scale = std::min(std::max(0.60, dist()), 1.0);
 
   const int height = image.rows;
   const int width = image.cols;
@@ -173,6 +209,8 @@ bool ReadZteImageToPrespecifiedDatum(const string& filename, const int label,
   cv::Mat cv_img_origin;
   if (label == 0)
     ZteCropBackground(filename, cv_img_origin, 360, 360, x0, y0, diff_x, diff_y, scale);
+  if (label < 0)
+    ZteCropCenteredPerson(filename, cv_img_origin);
   else
     ZteCropPerson(filename, cv_img_origin);
   if (!cv_img_origin.data) {
