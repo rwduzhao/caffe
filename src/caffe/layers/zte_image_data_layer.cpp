@@ -12,6 +12,7 @@
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/highgui/highgui_c.h>
 #include <opencv2/imgproc/imgproc.hpp>
+#include <stdlib.h>
 
 #include "caffe/data_layers_extra.hpp"
 #include "caffe/layer.hpp"
@@ -22,6 +23,42 @@
 #include "caffe/util/rng.hpp"
 
 namespace caffe {
+
+vector<int> ParseCropCenterAndSize(const string filename) {
+  string basename = filename;
+
+  const size_t last_slash_pos = basename.find_last_of("/");
+  if (last_slash_pos != std::string::npos)
+    basename = basename.substr(last_slash_pos + 1, basename.length());
+
+  size_t last_dot_pos = basename.find_last_of(".");
+  if (last_dot_pos != std::string::npos)
+    basename = basename.substr(0, last_dot_pos);
+
+  last_dot_pos = basename.find_last_of(".");
+  if (last_dot_pos != std::string::npos)
+    basename = basename.substr(last_dot_pos + 1, basename.length());
+
+  const size_t x_pos = basename.find("x");
+  const size_t y_pos = basename.find("y");
+  const size_t w_pos = basename.find("w");
+  const size_t h_pos = basename.find("h");
+
+  const int x_center = atoi(basename.substr(x_pos + 1, y_pos).c_str());
+  const int y_center = atoi(basename.substr(y_pos + 1, w_pos).c_str());
+  const int width = atoi(basename.substr(w_pos + 1, h_pos).c_str());
+  const int height = atoi(basename.substr(h_pos + 1, basename.length()).c_str());
+  const int crop_size = std::max(width, height);
+
+  vector<int> location;
+  location.push_back(x_center);
+  location.push_back(y_center);
+  location.push_back(width);
+  location.push_back(height);
+  location.push_back(crop_size);
+
+  return location;
+}
 
 template <typename Dtype>
 ZteImageDataLayer<Dtype>::~ZteImageDataLayer<Dtype>() {
@@ -46,8 +83,13 @@ void ZteImageDataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bottom
   string filename;
   int label;
   while (infile >> filename >> label) {
-    lines_.push_back(std::make_pair(filename, label));
+    if (label != 0)
+      lines_.push_back(std::make_pair(filename, label));
+    else
+      bg_lines_.push_back(std::make_pair(filename, label));
   }
+  LOG(INFO) << "A total of " << lines_.size() << " foreground images.";
+  LOG(INFO) << "A total of " << bg_lines_.size() << " background images.";
 
   if (this->layer_param_.zte_image_data_param().shuffle()) {
     // randomly shuffle data
@@ -56,7 +98,6 @@ void ZteImageDataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bottom
     prefetch_rng_.reset(new Caffe::RNG(prefetch_rng_seed));
     ShuffleImages();
   }
-  LOG(INFO) << "A total of " << lines_.size() << " images.";
 
   lines_id_ = 0;
   // Check if we would need to randomly skip a few data points
@@ -99,6 +140,7 @@ void ZteImageDataLayer<Dtype>::ShuffleImages() {
   caffe::rng_t* prefetch_rng =
       static_cast<caffe::rng_t*>(prefetch_rng_->generator());
   shuffle(lines_.begin(), lines_.end(), prefetch_rng);
+  shuffle(bg_lines_.begin(), bg_lines_.end(), prefetch_rng);
 }
 
 // This function is used to create a thread that prefetches the data.
@@ -134,25 +176,51 @@ void ZteImageDataLayer<Dtype>::InternalThreadEntry() {
 
   // datum scales
   const int lines_size = lines_.size();
+  int double_lines_id = 0;
+  lines_id_ = 0;
   for (int item_id = 0; item_id < batch_size; ++item_id) {
     // get a blob
     timer.Start();
     CHECK_GT(lines_size, lines_id_);
 
     cv::Mat cv_img;
-    if (lines_[lines_id_].second == 0) {
-      int x0 = -1;
-      int y0 = -1;
-      int diff_x = 1E6;
-      int diff_y = 1E6;
-      double scale = 0.0;
-      ZteCropBackground(root_folder + lines_[lines_id_].first, cv_img, 360, 360,
-                        x0, y0, diff_x, diff_y, scale);
-    } else if (lines_[lines_id_].second == -1) {
-      ZteCropCenteredPerson(root_folder + lines_[lines_id_].first, cv_img);
-    } else {
-      ZteCropPerson(root_folder + lines_[lines_id_].first, cv_img);
+
+    if (Phase() == caffe::TRAIN) {
+      if (double_lines_id % 2 == 0) {  // foreground
+        const string fg_image_filename = root_folder + lines_[lines_id_].first;
+        cv_img = ReadImageToCVMat(fg_image_filename, new_height, new_width, is_color);
+        prefetch_label[item_id] = std::max(0, lines_[lines_id_].second);
+      } else if (bg_lines_.size() > 0) {  // background
+        const int bg_lines_id = lines_id_ % bg_lines_.size();
+        const string bg_image_filename = root_folder + bg_lines_[bg_lines_id].first;
+        if (lines_id_ % 4 == 0) {
+          int x0 = -1;
+          int y0 = -1;
+          int diff_x = 1E6;
+          int diff_y = 1E6;
+          double scale = 0.0;
+          ZteCropBackground(bg_image_filename, cv_img, 360, 360, x0, y0, diff_x, diff_y, scale);
+          prefetch_label[item_id] = 0;
+        } else {
+          const vector<int> crop_location = ParseCropCenterAndSize(lines_[lines_id_].first);
+          const int crop_x_center = crop_location[0];
+          const int crop_y_center = crop_location[1];
+          // const int crop_width = crop_location[2];
+          // const int crop_height = crop_location[3];
+          const int crop_size = crop_location[4];
+          const int crop_x0 = std::max(0, crop_x_center - crop_size / 2);
+          const int crop_y0 = std::max(0, crop_y_center - crop_size / 2);
+          cv_img = ZteCropBackground(bg_image_filename, new_height, new_width, is_color,
+                                     crop_x0, crop_y0, crop_size, crop_size);
+          prefetch_label[item_id] = 0;
+        }
+      }
+    } else if (Phase() == caffe::TEST) {
+      cv_img = ReadImageToCVMat(root_folder + lines_[lines_id_].first,
+                                new_height, new_width, is_color);
+      prefetch_label[item_id] = std::max(0, lines_[lines_id_].second);
     }
+
     CHECK(cv_img.data) << "Could not load " << lines_[lines_id_].first;
     cv::resize(cv_img, cv_img, cv::Size(new_width, new_height));
 
@@ -164,13 +232,16 @@ void ZteImageDataLayer<Dtype>::InternalThreadEntry() {
     this->data_transformer_->Transform(cv_img, &(this->transformed_data_));
     trans_time += timer.MicroSeconds();
 
-    prefetch_label[item_id] = std::max(0, lines_[lines_id_].second);
     // go to the next iter
-    lines_id_++;
+    ++double_lines_id;
+    if (Phase() == caffe::TEST)
+      ++double_lines_id;
+    lines_id_ = double_lines_id / 2;
     if (lines_id_ >= lines_size) {
       // We have reached the end. Restart from the first.
       DLOG(INFO) << "Restarting data prefetching from start.";
-      lines_id_ = 0;
+      double_lines_id = 0;
+      lines_id_ = double_lines_id / 2;
       if (this->layer_param_.zte_image_data_param().shuffle()) {
         ShuffleImages();
       }

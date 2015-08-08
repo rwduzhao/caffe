@@ -21,12 +21,19 @@ bool ZteCropBackground(const string image_file, cv::Mat &image,
                        double &scale);
 bool ZteCropPerson(const string image_file, cv::Mat &image);
 bool ZteCropCenteredPerson(const string image_file, cv::Mat &image);
-bool ReadImageToPrespecifiedDatum(const string& filename, const int label, const int height, const int width, const bool is_color, Datum* datum);
+bool ReadImageToPrespecifiedDatum(const string& filename, const int label,
+                                  const int height, const int width,
+                                  const bool is_color, Datum* datum);
 bool ReadZteImageToPrespecifiedDatum(const string& filename, const int label,
                                      const int height, const int width,
                                      const bool is_color, Datum* datum,
                                      int &x0, int &y0, int &diff_x, int &diff_y,
                                      double &scale);
+cv::Mat ZteCropBackground(const string& filename,
+                          const int height, const int width,
+                          const bool is_color,
+                          const int crop_x0, const int crop_y0,
+                          const int crop_width, const int crop_height);
 
 
 }  // namespace caffe

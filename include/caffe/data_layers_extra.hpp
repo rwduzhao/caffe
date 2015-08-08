@@ -137,6 +137,8 @@ class ZteImageDataLayer : public BasePrefetchingDataLayer<Dtype> {
 
   vector<std::pair<std::string, int> > lines_;
   int lines_id_;
+
+  vector<std::pair<std::string, int> > bg_lines_;
 };
 
 template <typename Dtype>

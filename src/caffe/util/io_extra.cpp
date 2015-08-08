@@ -22,6 +22,34 @@
 
 namespace caffe {
 
+
+cv::Mat ZteCropBackground(const string& filename,
+                          const int height, const int width,
+                          const bool is_color,
+                          const int crop_x0, const int crop_y0,
+                          const int crop_width, const int crop_height) {
+  cv::Mat cv_img;
+  int cv_read_flag = (is_color ? CV_LOAD_IMAGE_COLOR :
+    CV_LOAD_IMAGE_GRAYSCALE);
+  cv::Mat cv_img_origin = cv::imread(filename, cv_read_flag);
+  if (!cv_img_origin.data) {
+    LOG(ERROR) << "Could not open or find file " << filename;
+    return cv_img_origin;
+  }
+
+  cv_img_origin = cv_img_origin(cv::Rect(std::max(0, crop_x0), std::max(0, crop_y0),
+                                         std::min(crop_width, cv_img_origin.cols - crop_x0),
+                                         std::min(crop_height, cv_img_origin.rows - crop_y0)));
+
+  if (height > 0 && width > 0) {
+    cv::resize(cv_img_origin, cv_img, cv::Size(width, height));
+  } else {
+    cv_img = cv_img_origin;
+  }
+
+  return cv_img;
+}
+
 bool ZteCropBackground(const string image_file, cv::Mat &image,
                        int crop_width, int crop_height,
                        int &x0, int &y0, int &diff_x, int &diff_y,
@@ -204,7 +232,7 @@ bool ReadZteImageToPrespecifiedDatum(const string& filename, const int label,
                                      int &x0, int &y0, int &diff_x, int &diff_y,
                                      double &scale) {
   const bool zte_is_color = true;
-  const int cv_read_flag = (zte_is_color ? CV_LOAD_IMAGE_COLOR : CV_LOAD_IMAGE_GRAYSCALE);
+  // const int cv_read_flag = (zte_is_color ? CV_LOAD_IMAGE_COLOR : CV_LOAD_IMAGE_GRAYSCALE);
 
   cv::Mat cv_img_origin;
   if (label == 0)
