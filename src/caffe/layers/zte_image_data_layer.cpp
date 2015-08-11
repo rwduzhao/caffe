@@ -163,62 +163,66 @@ void ZteImageDataLayer<Dtype>::InternalThreadEntry() {
 
   // Reshape on single input batches for inputs of varying dimension.
   if (batch_size == 1 && crop_size == 0 && new_height == 0 && new_width == 0) {
-    cv::Mat cv_img = ReadImageToCVMat(root_folder + lines_[lines_id_].first,
-        0, 0, is_color);
-    this->prefetch_data_.Reshape(1, cv_img.channels(),
-        cv_img.rows, cv_img.cols);
-    this->transformed_data_.Reshape(1, cv_img.channels(),
-        cv_img.rows, cv_img.cols);
+    cv::Mat cv_img = ReadImageToCVMat(root_folder + lines_[lines_id_].first, 0, 0, is_color);
+    this->prefetch_data_.Reshape(1, cv_img.channels(), cv_img.rows, cv_img.cols);
+    this->transformed_data_.Reshape(1, cv_img.channels(), cv_img.rows, cv_img.cols);
   }
 
   Dtype* prefetch_data = this->prefetch_data_.mutable_cpu_data();
   Dtype* prefetch_label = this->prefetch_label_.mutable_cpu_data();
 
+  shared_ptr<Caffe::RNG> rng_ptr;
+  const unsigned int rng_seed = caffe_rng_rand();
+  rng_ptr.reset(new Caffe::RNG(rng_seed));
+  caffe::rng_t* rng = static_cast<caffe::rng_t*>(rng_ptr->generator());
+
   // datum scales
-  const int lines_size = lines_.size();
-  int double_lines_id = 0;
-  lines_id_ = 0;
+  const int num_line = lines_.size();
+  const int num_bg_line = bg_lines_.size();
+  int read_lines_id = lines_id_;
   for (int item_id = 0; item_id < batch_size; ++item_id) {
     // get a blob
     timer.Start();
-    CHECK_GT(lines_size, lines_id_);
+    CHECK_GT(num_line, lines_id_);
 
     cv::Mat cv_img;
-
-    if (Phase() == caffe::TRAIN) {
-      if (double_lines_id % 2 == 0) {  // foreground
+    const int phase = this->layer_param().phase();
+    if (phase == caffe::TRAIN) {
+      if (read_lines_id % 5 != 0) {  // foreground
+        DLOG(INFO) << "foreground " << lines_id_;
         const string fg_image_filename = root_folder + lines_[lines_id_].first;
         cv_img = ReadImageToCVMat(fg_image_filename, new_height, new_width, is_color);
         prefetch_label[item_id] = std::max(0, lines_[lines_id_].second);
-      } else if (bg_lines_.size() > 0) {  // background
-        const int bg_lines_id = lines_id_ % bg_lines_.size();
+        ++lines_id_;
+      } else if (num_bg_line > 0) {  // background
+        const int bg_lines_id = ((*rng)() % num_bg_line);
+        DLOG(INFO) << "background " << bg_lines_id;
         const string bg_image_filename = root_folder + bg_lines_[bg_lines_id].first;
-        if (lines_id_ % 4 == 0) {
+        if ((*rng)() % 4 == 0) {
           int x0 = -1;
           int y0 = -1;
           int diff_x = 1E6;
           int diff_y = 1E6;
           double scale = 0.0;
           ZteCropBackground(bg_image_filename, cv_img, 360, 360, x0, y0, diff_x, diff_y, scale);
-          prefetch_label[item_id] = 0;
         } else {
-          const vector<int> crop_location = ParseCropCenterAndSize(lines_[lines_id_].first);
+          const int location_id = ((*rng)() % num_line);
+          vector<int> crop_location = ParseCropCenterAndSize(lines_[location_id].first);
           const int crop_x_center = crop_location[0];
           const int crop_y_center = crop_location[1];
-          // const int crop_width = crop_location[2];
-          // const int crop_height = crop_location[3];
-          const int crop_size = crop_location[4];
           const int crop_x0 = std::max(0, crop_x_center - crop_size / 2);
           const int crop_y0 = std::max(0, crop_y_center - crop_size / 2);
+          const int crop_size = crop_location[4];
           cv_img = ZteCropBackground(bg_image_filename, new_height, new_width, is_color,
                                      crop_x0, crop_y0, crop_size, crop_size);
-          prefetch_label[item_id] = 0;
         }
+        prefetch_label[item_id] = std::max(0, bg_lines_[bg_lines_id].second);
       }
-    } else if (Phase() == caffe::TEST) {
-      cv_img = ReadImageToCVMat(root_folder + lines_[lines_id_].first,
-                                new_height, new_width, is_color);
+    } else if (phase == caffe::TEST) {
+      const string fg_image_filename = root_folder + lines_[lines_id_].first;
+      cv_img = ReadImageToCVMat(fg_image_filename, new_height, new_width, is_color);
       prefetch_label[item_id] = std::max(0, lines_[lines_id_].second);
+      ++lines_id_;
     }
 
     CHECK(cv_img.data) << "Could not load " << lines_[lines_id_].first;
@@ -233,15 +237,12 @@ void ZteImageDataLayer<Dtype>::InternalThreadEntry() {
     trans_time += timer.MicroSeconds();
 
     // go to the next iter
-    ++double_lines_id;
-    if (Phase() == caffe::TEST)
-      ++double_lines_id;
-    lines_id_ = double_lines_id / 2;
-    if (lines_id_ >= lines_size) {
+    ++read_lines_id;
+    if (lines_id_ >= num_line) {
       // We have reached the end. Restart from the first.
       DLOG(INFO) << "Restarting data prefetching from start.";
-      double_lines_id = 0;
-      lines_id_ = double_lines_id / 2;
+      lines_id_ = 0;
+      read_lines_id = 0;
       if (this->layer_param_.zte_image_data_param().shuffle()) {
         ShuffleImages();
       }

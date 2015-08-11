@@ -167,11 +167,15 @@ class ZteStackedImageDataLayer : public BasePrefetchingDataLayer<Dtype> {
   virtual void ReadSourceListToLines();
   virtual void SetDatumSize();
   virtual bool ReadSourceToTop(const int lines_id, const int batch_item_id);
+  virtual bool ReadSourceToTop(const int lines_id, const int bg_lines_id, const int batch_item_id);
 
   vector<std::pair<std::string, int> > lines_;  // data name, label
   vector<vector<std::string> > feature_files_;  // feature sizes, feature file names
   vector<Dtype *> feature_means_;
   int lines_id_;
+
+  vector<std::pair<std::string, int> > bg_lines_;
+  vector<vector<vector<int> > > stacked_locations_;
 };
 
 

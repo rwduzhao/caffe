@@ -29,6 +29,10 @@ bool ReadZteImageToPrespecifiedDatum(const string& filename, const int label,
                                      const bool is_color, Datum* datum,
                                      int &x0, int &y0, int &diff_x, int &diff_y,
                                      double &scale);
+bool ReadZteImageToPrespecifiedDatum(const string& filename, const int label,
+                                     const int height, const int width,
+                                     const bool is_color, Datum* datum,
+                                     const vector<int> location, double &scale);
 cv::Mat ZteCropBackground(const string& filename,
                           const int height, const int width,
                           const bool is_color,

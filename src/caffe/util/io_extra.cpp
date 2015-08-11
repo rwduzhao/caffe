@@ -275,4 +275,62 @@ bool ReadZteImageToPrespecifiedDatum(const string& filename, const int label,
   return true;
 }
 
+bool ReadZteImageToPrespecifiedDatum(const string& filename, const int label,
+                                     const int height, const int width,
+                                     const bool is_color, Datum* datum,
+                                     const vector<int> location, double &scale) {
+  // const int cv_read_flag = (zte_is_color ? CV_LOAD_IMAGE_COLOR : CV_LOAD_IMAGE_GRAYSCALE);
+
+  cv::Mat cv_img_origin;
+  if (location.size() == 0) {
+    DLOG(INFO) << "foreground: " << filename;
+    cv_img_origin = ReadImageToCVMat(filename, height, width, is_color);
+  } else {
+    DLOG(INFO) << "background: " << filename;
+    const int crop_x_center = location[0];
+    const int crop_y_center = location[1];
+    const int crop_size = location[4];
+    const int crop_x0 = std::max(0, crop_x_center - crop_size / 2);
+    const int crop_y0 = std::max(0, crop_y_center - crop_size / 2);
+    cv_img_origin = ZteCropBackground(filename, height, width, is_color,
+                                      crop_x0, crop_y0, crop_size, crop_size);
+
+  }
+
+  if (!cv_img_origin.data) {
+    LOG(ERROR) << "Could not open or find file " << filename;
+    return false;
+  }
+  cv::Mat cv_img;
+  if (height > 0 && width > 0) {
+    cv::resize(cv_img_origin, cv_img, cv::Size(width, height));
+  } else {
+    cv_img = cv_img_origin;
+  }
+
+  const bool zte_is_color = true;  //TODO
+  int num_channels = (zte_is_color ? 3 : 1);
+  CHECK(datum->channels() >= cv_img.channels());
+  CHECK(datum->height() == cv_img.rows);
+  CHECK(datum->width() == cv_img.cols);
+  string* datum_string = datum->mutable_data();
+  if (zte_is_color) {
+    for (int c = 0; c < num_channels; ++c) {
+      for (int h = 0; h < cv_img.rows; ++h) {
+        for (int w = 0; w < cv_img.cols; ++w) {
+          datum_string->push_back(static_cast<char>(cv_img.at<cv::Vec3b>(h, w)[c]));
+        }
+      }
+    }
+  } else {  // Faster than repeatedly testing is_color for each pixel w/i loop
+    for (int h = 0; h < cv_img.rows; ++h) {
+      for (int w = 0; w < cv_img.cols; ++w) {
+        datum_string->push_back(static_cast<char>(cv_img.at<uchar>(h, w)));
+        }
+      }
+  }
+
+  return true;
+}
+
 }  // namespace caffe
