@@ -82,8 +82,9 @@ void ZteImageDataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bottom
   std::ifstream infile(source.c_str());
   string filename;
   int label;
+  const int phase = this->layer_param().phase();
   while (infile >> filename >> label) {
-    if (label != 0)
+    if (label != 0 || phase == caffe::TEST)
       lines_.push_back(std::make_pair(filename, label));
     else
       bg_lines_.push_back(std::make_pair(filename, label));
@@ -188,7 +189,7 @@ void ZteImageDataLayer<Dtype>::InternalThreadEntry() {
     cv::Mat cv_img;
     const int phase = this->layer_param().phase();
     if (phase == caffe::TRAIN) {
-      if (read_lines_id % 5 != 0) {  // foreground
+      if (read_lines_id % 5 != 0 || num_bg_line == 0) {  // foreground
         DLOG(INFO) << "foreground " << lines_id_;
         const string fg_image_filename = root_folder + lines_[lines_id_].first;
         cv_img = ReadImageToCVMat(fg_image_filename, new_height, new_width, is_color);

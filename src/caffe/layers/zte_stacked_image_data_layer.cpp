@@ -141,7 +141,7 @@ void ZteStackedImageDataLayer<Dtype>::InternalThreadEntry() {
   const int phase = this->layer_param().phase();
   int read_lines_id = lines_id_;
   for (int batch_item_id = 0; batch_item_id < batch_size; ++batch_item_id) {
-    if (phase == caffe::TEST || read_lines_id % 5 != 0) {  // foreground
+    if (phase == caffe::TEST || read_lines_id % 5 != 0 || num_bg_line == 0) {  // foreground
       CHECK_GT(num_line, lines_id_);
       const int bg_lines_id = -1;
       DLOG(INFO) << "dealing with foreground: " << lines_id_ << " " << bg_lines_id;
@@ -175,8 +175,9 @@ void ZteStackedImageDataLayer<Dtype>::ReadSourceListToLines() {
   lines_.clear();
   string filename;
   int label;
+  const int phase = this->layer_param().phase();
   while (infile >> filename >> label) {
-    if (label != 0) {
+    if (label != 0 || phase == caffe::TEST) {
       lines_.push_back(std::make_pair(filename, label));
     } else {
       bg_lines_.push_back(std::make_pair(filename, label));
