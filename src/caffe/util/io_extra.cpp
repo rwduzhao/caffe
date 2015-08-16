@@ -333,4 +333,42 @@ bool ReadZteImageToPrespecifiedDatum(const string& filename, const int label,
   return true;
 }
 
+vector<int> GetCropLocationFromZteImageFilename(const string filename) {
+  string basename = filename;
+
+  const size_t last_slash_pos = basename.find_last_of("/");
+  if (last_slash_pos != std::string::npos)
+    basename = basename.substr(last_slash_pos + 1, basename.length());
+
+  size_t last_dot_pos = basename.find_last_of(".");
+  if (last_dot_pos != std::string::npos)
+    basename = basename.substr(0, last_dot_pos);
+
+  last_dot_pos = basename.find_last_of(".");
+  if (last_dot_pos != std::string::npos)
+    basename = basename.substr(last_dot_pos + 1, basename.length());
+
+  const size_t x_pos = basename.find("x");
+  const size_t y_pos = basename.find("y");
+  const size_t w_pos = basename.find("w");
+  const size_t h_pos = basename.find("h");
+
+  const int x0 = atoi(basename.substr(x_pos + 1, y_pos).c_str());
+  const int y0 = atoi(basename.substr(y_pos + 1, w_pos).c_str());
+  const int width = atoi(basename.substr(w_pos + 1, h_pos).c_str());
+  const int height = atoi(basename.substr(h_pos + 1, basename.length()).c_str());
+  const int x_center = x0 + width / 2;
+  const int y_center = y0 + height / 2;
+  const int crop_size = std::max(width, height);
+
+  vector<int> location;
+  location.push_back(x_center);
+  location.push_back(y_center);
+  location.push_back(width);
+  location.push_back(height);
+  location.push_back(crop_size);
+
+  return location;
+}
+
 }  // namespace caffe

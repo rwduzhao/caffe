@@ -24,42 +24,6 @@ using std::ifstream;
 
 namespace caffe {
 
-vector<int> ParseCropCenterAndSize2(const string filename) {
-  string basename = filename;
-
-  const size_t last_slash_pos = basename.find_last_of("/");
-  if (last_slash_pos != std::string::npos)
-    basename = basename.substr(last_slash_pos + 1, basename.length());
-
-  size_t last_dot_pos = basename.find_last_of(".");
-  if (last_dot_pos != std::string::npos)
-    basename = basename.substr(0, last_dot_pos);
-
-  last_dot_pos = basename.find_last_of(".");
-  if (last_dot_pos != std::string::npos)
-    basename = basename.substr(last_dot_pos + 1, basename.length());
-
-  const size_t x_pos = basename.find("x");
-  const size_t y_pos = basename.find("y");
-  const size_t w_pos = basename.find("w");
-  const size_t h_pos = basename.find("h");
-
-  const int x_center = atoi(basename.substr(x_pos + 1, y_pos).c_str());
-  const int y_center = atoi(basename.substr(y_pos + 1, w_pos).c_str());
-  const int width = atoi(basename.substr(w_pos + 1, h_pos).c_str());
-  const int height = atoi(basename.substr(h_pos + 1, basename.length()).c_str());
-  const int crop_size = std::max(width, height);
-
-  vector<int> location;
-  location.push_back(x_center);
-  location.push_back(y_center);
-  location.push_back(width);
-  location.push_back(height);
-  location.push_back(crop_size);
-
-  return location;
-}
-
 vector<vector<vector<int> > > GetStackedLocations(const vector<std::pair<std::string, int> > &lines,
                                                   const string source_item_prefix) {
   vector<vector<vector<int> > > stacked_locations;
@@ -71,7 +35,7 @@ vector<vector<vector<int> > > GetStackedLocations(const vector<std::pair<std::st
     string filename;
     vector<vector<int> > locations;
     while (infile >> filename) {
-      vector<int> location = ParseCropCenterAndSize2(filename);
+      vector<int> location = GetCropLocationFromZteImageFilename(filename);
       locations.push_back(location);
     }
     stacked_locations.push_back(locations);

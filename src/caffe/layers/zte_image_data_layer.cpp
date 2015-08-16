@@ -24,42 +24,6 @@
 
 namespace caffe {
 
-vector<int> ParseCropCenterAndSize(const string filename) {
-  string basename = filename;
-
-  const size_t last_slash_pos = basename.find_last_of("/");
-  if (last_slash_pos != std::string::npos)
-    basename = basename.substr(last_slash_pos + 1, basename.length());
-
-  size_t last_dot_pos = basename.find_last_of(".");
-  if (last_dot_pos != std::string::npos)
-    basename = basename.substr(0, last_dot_pos);
-
-  last_dot_pos = basename.find_last_of(".");
-  if (last_dot_pos != std::string::npos)
-    basename = basename.substr(last_dot_pos + 1, basename.length());
-
-  const size_t x_pos = basename.find("x");
-  const size_t y_pos = basename.find("y");
-  const size_t w_pos = basename.find("w");
-  const size_t h_pos = basename.find("h");
-
-  const int x_center = atoi(basename.substr(x_pos + 1, y_pos).c_str());
-  const int y_center = atoi(basename.substr(y_pos + 1, w_pos).c_str());
-  const int width = atoi(basename.substr(w_pos + 1, h_pos).c_str());
-  const int height = atoi(basename.substr(h_pos + 1, basename.length()).c_str());
-  const int crop_size = std::max(width, height);
-
-  vector<int> location;
-  location.push_back(x_center);
-  location.push_back(y_center);
-  location.push_back(width);
-  location.push_back(height);
-  location.push_back(crop_size);
-
-  return location;
-}
-
 template <typename Dtype>
 ZteImageDataLayer<Dtype>::~ZteImageDataLayer<Dtype>() {
   this->JoinPrefetchThread();
@@ -208,7 +172,7 @@ void ZteImageDataLayer<Dtype>::InternalThreadEntry() {
           ZteCropBackground(bg_image_filename, cv_img, 360, 360, x0, y0, diff_x, diff_y, scale);
         } else {
           const int location_id = ((*rng)() % num_line);
-          vector<int> crop_location = ParseCropCenterAndSize(lines_[location_id].first);
+          vector<int> crop_location = GetCropLocationFromZteImageFilename(lines_[location_id].first);
           const int crop_x_center = crop_location[0];
           const int crop_y_center = crop_location[1];
           const int crop_x0 = std::max(0, crop_x_center - crop_size / 2);

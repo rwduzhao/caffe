@@ -38,6 +38,7 @@ cv::Mat ZteCropBackground(const string& filename,
                           const bool is_color,
                           const int crop_x0, const int crop_y0,
                           const int crop_width, const int crop_height);
+vector<int> GetCropLocationFromZteImageFilename(const string filename);
 
 
 }  // namespace caffe
