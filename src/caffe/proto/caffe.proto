@@ -1176,6 +1176,7 @@ message ZteImageDataParameter {
   // data.
   optional bool mirror = 6 [default = false];
   optional string root_folder = 12 [default = ""];
+  optional bool background_crop_square = 101 [default = true];
 }
 
 message ZteStackedImageDataParameter {

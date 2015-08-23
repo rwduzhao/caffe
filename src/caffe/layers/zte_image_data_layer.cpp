@@ -124,7 +124,8 @@ void ZteImageDataLayer<Dtype>::InternalThreadEntry() {
   const int new_width = zte_image_data_param.new_width();
   const int crop_size = this->layer_param_.transform_param().crop_size();
   const bool is_color = zte_image_data_param.is_color();
-  string root_folder = zte_image_data_param.root_folder();
+  const string root_folder = zte_image_data_param.root_folder();
+  const bool background_crop_square = zte_image_data_param.background_crop_square();
 
   // Reshape on single input batches for inputs of varying dimension.
   if (batch_size == 1 && crop_size == 0 && new_height == 0 && new_width == 0) {
@@ -177,9 +178,16 @@ void ZteImageDataLayer<Dtype>::InternalThreadEntry() {
           const int crop_y_center = crop_location[1];
           const int crop_x0 = std::max(0, crop_x_center - crop_size / 2);
           const int crop_y0 = std::max(0, crop_y_center - crop_size / 2);
+          const int crop_width = crop_location[2];
+          const int crop_height = crop_location[3];
           const int crop_size = crop_location[4];
-          cv_img = ZteCropBackground(bg_image_filename, new_height, new_width, is_color,
-                                     crop_x0, crop_y0, crop_size, crop_size);
+          if (background_crop_square) {
+            cv_img = ZteCropBackground(bg_image_filename, new_height, new_width, is_color,
+                                       crop_x0, crop_y0, crop_size, crop_size);
+          } else {
+            cv_img = ZteCropBackground(bg_image_filename, new_height, new_width, is_color,
+                                       crop_x0, crop_y0, crop_width, crop_height);
+          }
         }
         prefetch_label[item_id] = std::max(0, bg_lines_[bg_lines_id].second);
       }
