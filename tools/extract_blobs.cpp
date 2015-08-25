@@ -33,6 +33,8 @@ int main(int argc, char** argv) {
   gflags::ParseCommandLineFlags(&argc, &argv, true);
 
   /* configure caffe */
+  Caffe::set_mode(Caffe::CPU);
+#ifndef CPU_ONLY
   const int device_id = FLAGS_gpu;
   if (device_id >= 0) {
     Caffe::set_mode(Caffe::GPU);
@@ -40,6 +42,7 @@ int main(int argc, char** argv) {
   } else {
     Caffe::set_mode(Caffe::CPU);
   }
+#endif
 
   /* net param and model */
   const string net_param_file = FLAGS_net;
