@@ -42,6 +42,12 @@ void Solver<Dtype>::Init(const SolverParameter& param) {
   LOG(INFO) << "Solver scaffolding done.";
   iter_ = 0;
   current_step_ = 0;
+  batch_update_size_ = param_.batch_update_size();
+  CHECK(batch_update_size_ > 0);
+  if (batch_update_size_ > 1) {
+    CHECK(param_.solver_type() == SolverParameter_SolverType_SGD)
+      << "Batch update is only supported by SGD solver type.";
+  }
 }
 
 template <typename Dtype>
@@ -419,11 +425,13 @@ void SGDSolver<Dtype>::PreSolve() {
   // Initialize the history
   const vector<shared_ptr<Blob<Dtype> > >& net_params = this->net_->params();
   history_.clear();
+  temp_history_.clear();
   update_.clear();
   temp_.clear();
   for (int i = 0; i < net_params.size(); ++i) {
     const vector<int>& shape = net_params[i]->shape();
     history_.push_back(shared_ptr<Blob<Dtype> >(new Blob<Dtype>(shape)));
+    temp_history_.push_back(shared_ptr<Blob<Dtype> >(new Blob<Dtype>(shape)));
     update_.push_back(shared_ptr<Blob<Dtype> >(new Blob<Dtype>(shape)));
     temp_.push_back(shared_ptr<Blob<Dtype> >(new Blob<Dtype>(shape)));
   }
@@ -465,7 +473,8 @@ void SGDSolver<Dtype>::ApplyUpdate() {
     Regularize(param_id);
     ComputeUpdateValue(param_id, rate);
   }
-  this->net_->Update();
+  if ((this->iter_ + 1) % this->batch_update_size_ == 0)
+    this->net_->Update();
 }
 
 template <typename Dtype>
@@ -539,22 +548,43 @@ void SGDSolver<Dtype>::ComputeUpdateValue(int param_id, Dtype rate) {
   // Compute the update to history, then copy it to the parameter diff.
   switch (Caffe::mode()) {
   case Caffe::CPU: {
-    caffe_cpu_axpby(net_params[param_id]->count(), local_rate,
-              net_params[param_id]->cpu_diff(), momentum,
-              history_[param_id]->mutable_cpu_data());
-    caffe_copy(net_params[param_id]->count(),
-        history_[param_id]->cpu_data(),
-        net_params[param_id]->mutable_cpu_diff());
+    caffe_cpu_axpby(net_params[param_id]->count(), Dtype(1.0),
+                    net_params[param_id]->cpu_diff(), Dtype(1.0),
+                    temp_history_[param_id]->mutable_cpu_data());
+    if ((this->iter_ + 1) % this->batch_update_size_ == 0) {
+      // update history (diff) with accumulated diff with momemtum
+      caffe_cpu_axpby(net_params[param_id]->count(), local_rate,
+                      temp_history_[param_id]->cpu_data(), momentum,
+                      history_[param_id]->mutable_cpu_data());
+      // clear temp history
+      caffe_set(net_params[param_id]->count(), Dtype(0.),
+                temp_history_[param_id]->mutable_cpu_data());
+      // copy diff in history to net params
+      caffe_copy(net_params[param_id]->count(),
+                 history_[param_id]->cpu_data(),
+                 net_params[param_id]->mutable_cpu_diff());
+    }
     break;
   }
   case Caffe::GPU: {
 #ifndef CPU_ONLY
-    caffe_gpu_axpby(net_params[param_id]->count(), local_rate,
-              net_params[param_id]->gpu_diff(), momentum,
-              history_[param_id]->mutable_gpu_data());
-    caffe_copy(net_params[param_id]->count(),
-        history_[param_id]->gpu_data(),
-        net_params[param_id]->mutable_gpu_diff());
+    // accumulate net params diff to temp history (diff)
+    caffe_gpu_axpby(net_params[param_id]->count(), Dtype(1.0),
+                    net_params[param_id]->gpu_diff(), Dtype(1.0),
+                    temp_history_[param_id]->mutable_gpu_data());
+    if ((this->iter_ + 1) % this->batch_update_size_ == 0) {
+      // update history (diff) with accumulated diff with momemtum
+      caffe_gpu_axpby(net_params[param_id]->count(), local_rate,
+                      temp_history_[param_id]->gpu_data(), momentum,
+                      history_[param_id]->mutable_gpu_data());
+      // clear temp history
+      caffe_gpu_set(net_params[param_id]->count(), Dtype(0.),
+                    temp_history_[param_id]->mutable_gpu_data());
+      // copy diff in history to net params
+      caffe_copy(net_params[param_id]->count(),
+                 history_[param_id]->gpu_data(),
+                 net_params[param_id]->mutable_gpu_diff());
+    }
 #else
     NO_GPU;
 #endif

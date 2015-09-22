@@ -46,7 +46,6 @@ class Solver {
   // function that produces a SolverState protocol buffer that needs to be
   // written to disk together with the learned net.
   void Snapshot();
-  void RemarkableSnapshot();
   // The test routine
   void TestAll();
   void Test(const int test_net_id = 0);
@@ -59,8 +58,8 @@ class Solver {
   int current_step_;
   shared_ptr<Net<Dtype> > net_;
   vector<shared_ptr<Net<Dtype> > > test_nets_;
-  float remarkable_loss_;
-  float remarkable_loss_factor_;
+
+  int batch_update_size_;
 
   DISABLE_COPY_AND_ASSIGN(Solver);
 };
@@ -94,6 +93,7 @@ class SGDSolver : public Solver<Dtype> {
   // temp maintains other information that might be needed in computation
   //   of gradients/updates and is not needed in snapshots
   vector<shared_ptr<Blob<Dtype> > > history_, update_, temp_;
+  vector<shared_ptr<Blob<Dtype> > > temp_history_;
 
   DISABLE_COPY_AND_ASSIGN(SGDSolver);
 };
