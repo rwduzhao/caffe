@@ -38,6 +38,15 @@ void Blob<Dtype>::Reshape(const vector<int>& shape) {
 }
 
 template <typename Dtype>
+void Blob<Dtype>::Clear() {
+  shape_.resize(0);
+  count_ = 0;
+  capacity_ = 0;
+  data_.reset(new SyncedMemory(capacity_ * sizeof(Dtype)));
+  data_.reset(new SyncedMemory(capacity_ * sizeof(Dtype)));
+}
+
+template <typename Dtype>
 void Blob<Dtype>::Reshape(const BlobShape& shape) {
   CHECK_LE(shape.dim_size(), kMaxBlobAxes);
   vector<int> shape_vec(shape.dim_size());

@@ -265,6 +265,8 @@ class Blob {
 
   bool ShapeEquals(const BlobProto& other);
 
+  void Clear();
+
  protected:
   shared_ptr<SyncedMemory> data_;
   shared_ptr<SyncedMemory> diff_;

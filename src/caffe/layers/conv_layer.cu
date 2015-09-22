@@ -15,6 +15,7 @@ void ConvolutionLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
   for (int i = 0; i < bottom.size(); ++i) {
     const Dtype* bottom_data = bottom[i]->gpu_data();
     Dtype* top_data = top[i]->mutable_gpu_data();
+    this->col_buffer_.Reshape(1, this->kernel_dim_, this->height_out_, this->width_out_);
     for (int n = 0; n < this->num_; ++n) {
       this->forward_gpu_gemm(bottom_data + bottom[i]->offset(n), weight,
           top_data + top[i]->offset(n));
@@ -23,6 +24,7 @@ void ConvolutionLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
         this->forward_gpu_bias(top_data + top[i]->offset(n), bias);
       }
     }
+    this->col_buffer_.Clear();
   }
 }
 
@@ -50,6 +52,7 @@ void ConvolutionLayer<Dtype>::Backward_gpu(const vector<Blob<Dtype>*>& top,
     if (this->param_propagate_down_[0] || propagate_down[i]) {
       const Dtype* bottom_data = bottom[i]->gpu_data();
       Dtype* bottom_diff = bottom[i]->mutable_gpu_diff();
+      this->col_buffer_.Reshape(1, this->kernel_dim_, this->height_out_, this->width_out_);
       for (int n = 0; n < this->num_; ++n) {
         // gradient w.r.t. weight. Note that we will accumulate diffs.
         if (this->param_propagate_down_[0]) {
@@ -62,6 +65,7 @@ void ConvolutionLayer<Dtype>::Backward_gpu(const vector<Blob<Dtype>*>& top,
               bottom_diff + bottom[i]->offset(n));
         }
       }
+      this->col_buffer_.Clear();
     }
   }
 }
