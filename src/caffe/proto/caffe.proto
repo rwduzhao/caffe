@@ -355,6 +355,7 @@ message LayerParameter {
   optional ZteStackedImageDataParameter zte_stacked_image_data_param = 1105;
   optional ROIPoolingParameter roi_pooling_param = 8266711;
   optional CrossRegionsPoolingParameter cross_regions_pooling_param = 8266712;
+  optional LSTMParameter lstm_param = 8266713;
 }
 
 // Message that stores parameters used to apply transformation
@@ -1241,4 +1242,13 @@ message CrossRegionsPoolingParameter {
   optional Engine engine = 2 [default = DEFAULT];
   optional uint32 num_scale = 101 [default = 1];
   repeated float scale_levels = 102;
+}
+
+// Message that stores parameters used by LSTMParameter
+message LSTMParameter {
+  optional uint32 num_output = 1; // The number of outputs for the layer
+  optional float clipping_threshold = 2 [default = 0.0];
+  optional FillerParameter weight_filler = 3; // The filler for weight
+  optional FillerParameter bias_filler = 4; // The filler for the bias
+  optional uint32 batch_size = 5 [default = 1];
 }

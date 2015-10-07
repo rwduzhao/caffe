@@ -3,8 +3,6 @@
 
 using std::max;
 using std::min;
-using std::floor;
-using std::ceil;
 
 namespace caffe {
 

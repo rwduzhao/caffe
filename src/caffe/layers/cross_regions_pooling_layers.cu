@@ -41,7 +41,8 @@ template <typename Dtype>
 __global__ void MultiScaledCrossRegionsMaximumPoolForward(
   const int top_count, const int top_channels,
   const int bottom_channels, const Dtype* bottom_data,
-  const int num_rois, const Dtype* bottom_rois, const int *roi_scale_ids_data,
+  const int num_rois, const Dtype* bottom_rois,
+  const int *roi_scale_ids_data,
   Dtype *top_data, int *argmax_data) {
 
   CUDA_KERNEL_LOOP(top_index, top_count) {
@@ -52,7 +53,7 @@ __global__ void MultiScaledCrossRegionsMaximumPoolForward(
 
     int maxidx = -1;
     Dtype maxval = -FLT_MAX;
-	for (int roi_id = 0; roi_id < num_rois; ++roi_id) {
+	for (int roi_id = 0; roi_id < num_rois; ++roi_id) {  // loop for each roi
       const int roi_offset = roi_id * 5;
       const int roi_image_id = bottom_rois[roi_offset + 0];
       if (roi_image_id == top_image_id) {
@@ -79,38 +80,22 @@ __global__ void MultiScaledCrossRegionsAveragePoolForward(
   const int top_count, const int top_channels,
   const int bottom_channels, const Dtype* bottom_data,
   const int num_rois, const Dtype* bottom_rois,
-  const int num_scale, const Dtype* scale_levels_data,
-  const int num_image, const Dtype *image_areas_data,
-  Dtype *top_data, int *pool_counts, int *roi_scale_ids_data) {
+  const int *roi_scale_ids_data,
+  Dtype *top_data, int *pool_counts) {
 
   CUDA_KERNEL_LOOP(top_index, top_count) {
     const int top_image_id = top_index / top_channels;
-    const Dtype image_area = image_areas_data[top_image_id];
-
     const int top_c = top_index % top_channels;
     const int top_scale_id = (top_c - (top_c % bottom_channels)) / bottom_channels;
-
     const int bottom_c = top_index % bottom_channels;
 
 	top_data[top_index] = 0.0;
     int pool_count = 0;
-	for (int roi_id = 0; roi_id < num_rois; ++roi_id) {
+	for (int roi_id = 0; roi_id < num_rois; ++roi_id) {  // loop for each roi
       const int roi_offset = roi_id * 5;
       const int roi_image_id = bottom_rois[roi_offset + 0];
       if (roi_image_id == top_image_id) {
-        // get roi scale id
-        const float roi_w = bottom_rois[roi_offset + 3] - bottom_rois[roi_offset + 1] + 1;
-        const float roi_h = bottom_rois[roi_offset + 4] - bottom_rois[roi_offset + 2] + 1;
-        const int roi_area = (int)(roi_w * roi_h);
-        const Dtype area_ratio = Dtype(roi_area) / Dtype(image_area);
-        int roi_scale_id = num_scale - 1;  // pre-assign to largest scale
-        for (int scale_id = 0; scale_id < num_scale; ++scale_id) {
-          if (area_ratio >= scale_levels_data[scale_id] &&
-              area_ratio < scale_levels_data[scale_id + 1])
-            roi_scale_id = scale_id;
-        }
-        roi_scale_ids_data[roi_id] = roi_scale_id;
-
+        const int roi_scale_id = roi_scale_ids_data[roi_id];
         if (roi_scale_id == top_scale_id) {
           const int bottom_index = roi_id * bottom_channels + bottom_c;
           top_data[top_index] += bottom_data[bottom_index];
@@ -118,10 +103,8 @@ __global__ void MultiScaledCrossRegionsAveragePoolForward(
         }
       }
 	}
-    if (top_data[top_index] != 0 && pool_count > 0)
+    if (pool_count > 0)
       top_data[top_index] /= Dtype(pool_count);
-    else
-      top_data[top_index] = 0.0;
     pool_counts[top_index] = pool_count;
   }
 }
@@ -165,9 +148,11 @@ void CrossRegionsPoolingLayer<Dtype>::Forward_gpu(
     case CrossRegionsPoolingParameter_PoolMethod_AVE:
       // NOLINT_NEXT_LINE(whitespace/operators)
       MultiScaledCrossRegionsAveragePoolForward<Dtype><<<CAFFE_GET_BLOCKS(top_count), CAFFE_CUDA_NUM_THREADS>>>(
-        top_count, top_channels_, bottom_channels_, bottom_data, num_rois, bottom_rois,
-        num_scale_, scale_levels_data, num_image_, image_areas_data,
-        top_data, pool_counts, roi_scale_ids_data);
+        top_count, top_channels_,
+        bottom_channels_, bottom_data,
+        num_rois, bottom_rois,
+        roi_scale_ids_data,
+        top_data, pool_counts);
       CUDA_POST_KERNEL_CHECK;
       break;
     default:
@@ -178,7 +163,7 @@ void CrossRegionsPoolingLayer<Dtype>::Forward_gpu(
 template <typename Dtype>
 __global__ void MultiScaledCrossRegionsMaximumPoolBackward(
   const int bottom_count, const int bottom_channels, const int top_channels,
-  const Dtype *bottom_rois, const int num_scale, const int *roi_scale_ids_data, const int* argmax_data,
+  const Dtype *bottom_rois, const int *roi_scale_ids_data, const int* argmax_data,
   const Dtype* top_diff, Dtype *bottom_diff) {
 
   CUDA_KERNEL_LOOP(bottom_index, bottom_count) {
@@ -203,10 +188,10 @@ __global__ void MultiScaledCrossRegionsAveragePoolBackward(
     const int roi_id = bottom_index / bottom_channels;
     const int bottom_c = bottom_index % bottom_channels;
 
-	const int roi_image_id = bottom_rois[5 * roi_id];
+	const int roi_image_id = bottom_rois[5 * roi_id + 0];
     const int roi_scale_id = roi_scale_ids_data[roi_id];
     const int top_index = roi_image_id * top_channels + roi_scale_id * bottom_channels + bottom_c;
-    if (top_diff[top_index] != 0 && pool_counts[top_index] > 0)
+    if (pool_counts[top_index] > 0)
       bottom_diff[bottom_index] = top_diff[top_index] / Dtype(pool_counts[top_index]);
   }
 }
@@ -238,15 +223,16 @@ void CrossRegionsPoolingLayer<Dtype>::Backward_gpu(
       // NOLINT_NEXT_LINE(whitespace/operators)
       MultiScaledCrossRegionsMaximumPoolBackward<Dtype><<<CAFFE_GET_BLOCKS(bottom_count), CAFFE_CUDA_NUM_THREADS>>>(
         bottom_count, bottom_channels_, top_channels_,
-        bottom_rois, num_scale_, roi_scale_ids_data, argmax_data,
+        bottom_rois, roi_scale_ids_data, argmax_data,
         top_diff, bottom_diff);
       CUDA_POST_KERNEL_CHECK;
       break;
     case CrossRegionsPoolingParameter_PoolMethod_AVE:
       // NOLINT_NEXT_LINE(whitespace/operators)
       MultiScaledCrossRegionsAveragePoolBackward<Dtype><<<CAFFE_GET_BLOCKS(bottom_count), CAFFE_CUDA_NUM_THREADS>>>(
-        bottom_count, bottom_channels_, top_channels_, bottom_rois, roi_scale_ids_data, pool_counts, top_diff,
-        bottom_diff);
+        bottom_count, bottom_channels_, top_channels_,
+        bottom_rois, roi_scale_ids_data, pool_counts,
+        top_diff, bottom_diff);
       CUDA_POST_KERNEL_CHECK;
       break;
     default:
