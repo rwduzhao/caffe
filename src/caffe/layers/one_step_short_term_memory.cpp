@@ -6,12 +6,12 @@
 #include "caffe/layer.hpp"
 #include "caffe/util/math_functions.hpp"
 #include "caffe/vision_layers.hpp"
-#include "caffe/layers/lstm_layer.hpp"
+#include "caffe/layers/one_step_short_term_memory_layer.hpp"
 
 namespace caffe {
 
 template <typename Dtype>
-void LstmLayer<Dtype>::LayerSetUp(
+void OneStepShortTermMemoryLayer<Dtype>::LayerSetUp(
   const vector<Blob<Dtype>*>& bottom,
   const vector<Blob<Dtype>*>& top) {
 
@@ -23,6 +23,9 @@ void LstmLayer<Dtype>::LayerSetUp(
   T_ = bottom[0]->num() / N_; // length of sequence
 
   // Check if we need to set up the weights
+  // blobs_[0]: weight_hi (4 * H_ by I_)
+  // blobs_[1]: weight_hh (4 * H_ by H_)
+  // blobs_[2]: bias (4 * H_)
   if (this->blobs_.size() > 0) {
     LOG(INFO) << "Skipping parameter initialization";
   } else {
@@ -48,6 +51,7 @@ void LstmLayer<Dtype>::LayerSetUp(
     weight_filler->Fill(this->blobs_[1].get());
 
     // If necessary, intiialize and fill the bias term
+    // shape: 4 * H_
     vector<int> bias_shape(1, 4 * H_);
     this->blobs_[2].reset(new Blob<Dtype>(bias_shape));
     shared_ptr<Filler<Dtype> > bias_filler(GetFiller<Dtype>(this->layer_param_.lstm_param().bias_filler()));
@@ -72,7 +76,7 @@ void LstmLayer<Dtype>::LayerSetUp(
 }
 
 template <typename Dtype>
-void LstmLayer<Dtype>::Reshape(
+void OneStepShortTermMemoryLayer<Dtype>::Reshape(
   const vector<Blob<Dtype>*>& bottom,
   const vector<Blob<Dtype>*>& top) {
 
@@ -106,13 +110,13 @@ void LstmLayer<Dtype>::Reshape(
   top_.ShareDiff(*top[0]);
 
   // Set up the bias multiplier
-  vector<int> multiplier_shape(1, N_*T_);
+  vector<int> multiplier_shape(1, N_ * T_);
   bias_multiplier_.Reshape(multiplier_shape);
   caffe_set(bias_multiplier_.count(), Dtype(1), bias_multiplier_.mutable_cpu_data());
 }
 
 template <typename Dtype>
-void LstmLayer<Dtype>::Forward_cpu(
+void OneStepShortTermMemoryLayer<Dtype>::Forward_cpu(
   const vector<Blob<Dtype>*>& bottom,
   const vector<Blob<Dtype>*>& top) {
 
@@ -127,6 +131,7 @@ void LstmLayer<Dtype>::Forward_cpu(
   const Dtype *weight_i = this->blobs_[0]->cpu_data();
   const Dtype *weight_h = this->blobs_[1]->cpu_data();
   const Dtype *bias = this->blobs_[2]->cpu_data();
+
   Dtype *pre_gate_data = pre_gate_.mutable_cpu_data();
   Dtype *gate_data = gate_.mutable_cpu_data();
   Dtype *cell_data = cell_.mutable_cpu_data();
@@ -156,18 +161,18 @@ void LstmLayer<Dtype>::Forward_cpu(
 
   // Compute recurrent forward propagation
   for (int t = 0; t < T_; ++t) {
-    Dtype* h_t = top_data + top_.offset(t);
-    Dtype* c_t = cell_data + cell_.offset(t);
-    Dtype* tanh_c_t = tanh_cell_data + tanh_cell_.offset(t);
-    Dtype* i_t = gate_data + gate_.offset(t);
-    Dtype* f_t = gate_data + gate_.offset(t, 0, 1);
-    Dtype* o_t = gate_data + gate_.offset(t, 0, 2);
-    Dtype* g_t = gate_data + gate_.offset(t, 0, 3);
-    Dtype* pre_i_t = pre_gate_data + pre_gate_.offset(t);
-    Dtype* pre_g_t = pre_gate_data + pre_gate_.offset(t, 0, 3);
-    Dtype* mask_t = mask + clip_mask_.offset(t);
-    const Dtype* h_t_1 = t > 0 ? (h_t - top_.offset(1)) : h_0_.cpu_data();
-    const Dtype* c_t_1 = t > 0 ? (c_t - cell_.offset(1)) : c_0_.cpu_data();
+    Dtype *h_t = top_data + top_.offset(t);
+    Dtype *c_t = cell_data + cell_.offset(t);
+    Dtype *tanh_c_t = tanh_cell_data + tanh_cell_.offset(t);
+    Dtype *i_t = gate_data + gate_.offset(t);
+    Dtype *f_t = gate_data + gate_.offset(t, 0, 1);
+    Dtype *o_t = gate_data + gate_.offset(t, 0, 2);
+    Dtype *g_t = gate_data + gate_.offset(t, 0, 3);
+    Dtype *pre_i_t = pre_gate_data + pre_gate_.offset(t);
+    Dtype *pre_g_t = pre_gate_data + pre_gate_.offset(t, 0, 3);
+    Dtype *mask_t = mask + clip_mask_.offset(t);
+    const Dtype *h_t_1 = t > 0 ? (h_t - top_.offset(1)) : h_0_.cpu_data();
+    const Dtype *c_t_1 = t > 0 ? (c_t - cell_.offset(1)) : c_0_.cpu_data();
 
     // Hidden-to-hidden propagation
     if (clip) {
@@ -207,12 +212,12 @@ void LstmLayer<Dtype>::Forward_cpu(
     }
   }
   // Preserve cell state and output value for truncated BPTT
-  caffe_copy(N_*H_, cell_data + cell_.offset(T_ - 1), c_T_.mutable_cpu_data());
-  caffe_copy(N_*H_, top_data + top_.offset(T_ - 1), h_T_.mutable_cpu_data());
+  caffe_copy(N_ * H_, cell_data + cell_.offset(T_ - 1), c_T_.mutable_cpu_data());
+  caffe_copy(N_ * H_, top_data + top_.offset(T_ - 1), h_T_.mutable_cpu_data());
 }
 
 template <typename Dtype>
-void LstmLayer<Dtype>::Backward_cpu(
+void OneStepShortTermMemoryLayer<Dtype>::Backward_cpu(
   const vector<Blob<Dtype>*>& top,
   const vector<bool>& propagate_down,
   const vector<Blob<Dtype>*>& bottom) {
@@ -224,41 +229,41 @@ void LstmLayer<Dtype>::Backward_cpu(
     clip = bottom[1]->cpu_data();
     CHECK_EQ(bottom[1]->num(), bottom[1]->count());
   }
-  const Dtype* weight_i = this->blobs_[0]->cpu_data();
-  const Dtype* weight_h = this->blobs_[1]->cpu_data();
-  const Dtype* gate_data = gate_.cpu_data();
-  const Dtype* cell_data = cell_.cpu_data();
-  const Dtype* tanh_cell_data = tanh_cell_.cpu_data();
-  const Dtype* mask = clip_mask_.cpu_data();
+  const Dtype *weight_i = this->blobs_[0]->cpu_data();
+  const Dtype *weight_h = this->blobs_[1]->cpu_data();
+  const Dtype *gate_data = gate_.cpu_data();
+  const Dtype *cell_data = cell_.cpu_data();
+  const Dtype *tanh_cell_data = tanh_cell_.cpu_data();
+  const Dtype *mask = clip_mask_.cpu_data();
 
-  Dtype* top_diff = top_.mutable_cpu_diff();
-  Dtype* pre_gate_diff = pre_gate_.mutable_cpu_diff();
-  Dtype* gate_diff = gate_.mutable_cpu_diff();
-  Dtype* cell_diff = cell_.mutable_cpu_diff();
+  Dtype *top_diff = top_.mutable_cpu_diff();
+  Dtype *pre_gate_diff = pre_gate_.mutable_cpu_diff();
+  Dtype *gate_diff = gate_.mutable_cpu_diff();
+  Dtype *cell_diff = cell_.mutable_cpu_diff();
 
-  for (int t = T_-1; t >= 0; --t) {
-    Dtype* dh_t = top_diff + top_.offset(t);
-    const Dtype* c_t = cell_data + cell_.offset(t);
-    Dtype* dc_t = cell_diff + cell_.offset(t);
-    const Dtype* tanh_c_t = tanh_cell_data + tanh_cell_.offset(t);
-    const Dtype* i_t = gate_data + gate_.offset(t);
-    const Dtype* f_t = gate_data + gate_.offset(t, 0, 1);
-    const Dtype* o_t = gate_data + gate_.offset(t, 0, 2);
-    const Dtype* g_t = gate_data + gate_.offset(t, 0, 3);
-    Dtype* di_t = gate_diff + gate_.offset(t);
-    Dtype* df_t = gate_diff + gate_.offset(t, 0, 1);
-    Dtype* do_t = gate_diff + gate_.offset(t, 0, 2);
-    Dtype* dg_t = gate_diff + gate_.offset(t, 0, 3);
-    Dtype* pre_di_t = pre_gate_diff + pre_gate_.offset(t);
-    Dtype* pre_dg_t = pre_gate_diff + pre_gate_.offset(t, 0, 3);
-    Dtype* fdc = fdc_.mutable_cpu_data();
-    const Dtype* mask_t = mask + clip_mask_.offset(t);
+  for (int t = T_ - 1; t >= 0; --t) {
+    Dtype *dh_t = top_diff + top_.offset(t);
+    const Dtype *c_t = cell_data + cell_.offset(t);
+    Dtype *dc_t = cell_diff + cell_.offset(t);
+    const Dtype *tanh_c_t = tanh_cell_data + tanh_cell_.offset(t);
+    const Dtype *i_t = gate_data + gate_.offset(t);
+    const Dtype *f_t = gate_data + gate_.offset(t, 0, 1);
+    const Dtype *o_t = gate_data + gate_.offset(t, 0, 2);
+    const Dtype *g_t = gate_data + gate_.offset(t, 0, 3);
+    Dtype *di_t = gate_diff + gate_.offset(t);
+    Dtype *df_t = gate_diff + gate_.offset(t, 0, 1);
+    Dtype *do_t = gate_diff + gate_.offset(t, 0, 2);
+    Dtype *dg_t = gate_diff + gate_.offset(t, 0, 3);
+    Dtype *pre_di_t = pre_gate_diff + pre_gate_.offset(t);
+    Dtype *pre_dg_t = pre_gate_diff + pre_gate_.offset(t, 0, 3);
+    Dtype *fdc = fdc_.mutable_cpu_data();
+    const Dtype *mask_t = mask + clip_mask_.offset(t);
 
     for (int n = 0; n < N_; ++n) {
       // Output gate : tanh(c(t)) * h_diff(t)
       caffe_mul(H_, tanh_c_t, dh_t, do_t);
 
-      // Cell state : o(t) * tanh'(c(t)) * h_diff(t) + f(t+1) * c_diff(t+1)
+      // Cell state : o(t) * tanh'(c(t)) * h_diff(t) + f(t + 1) * c_diff(t + 1)
       caffe_mul(H_, o_t, dh_t, dc_t);
       caffe_tanh_diff(H_, tanh_c_t, dc_t, dc_t);
       if (t < T_ - 1) {
@@ -266,8 +271,8 @@ void LstmLayer<Dtype>::Backward_cpu(
         caffe_add(H_, fdc, dc_t, dc_t);
       }
 
-      // Forget gate : c(t-1) * c_diff(t)
-      const Dtype* c_t_1 = t > 0 ? (c_t - cell_.offset(1)) : c_0_.cpu_data();
+      // Forget gate : c(t - 1) * c_diff(t)
+      const Dtype *c_t_1 = t > 0 ? (c_t - cell_.offset(1)) : c_0_.cpu_data();
       if (clip) {
         caffe_mul(H_, c_t_1, mask_t, clipped_.mutable_cpu_data());
         c_t_1 = clipped_.cpu_data();
@@ -280,12 +285,12 @@ void LstmLayer<Dtype>::Backward_cpu(
       caffe_mul(H_, i_t, dc_t, dg_t);
 
       // Compute derivate before nonlinearity
-      caffe_sigmoid_diff(3*H_, i_t, di_t, pre_di_t);
+      caffe_sigmoid_diff(3 * H_, i_t, di_t, pre_di_t);
       caffe_tanh_diff(H_, g_t, dg_t, pre_dg_t);
 
       // Clip deriviates before nonlinearity
       if (clipping_threshold_ > 0.0f) {
-        caffe_bound(4*H_, pre_di_t, -clipping_threshold_, clipping_threshold_, pre_di_t);
+        caffe_bound(4 * H_, pre_di_t, -clipping_threshold_, clipping_threshold_, pre_di_t);
       }
 
       dh_t += H_;
@@ -306,17 +311,14 @@ void LstmLayer<Dtype>::Backward_cpu(
     }
 
     if (t > 0) {
-      Dtype* dh_t_1 = top_diff + top_.offset(t-1);
+      Dtype *dh_t_1 = top_diff + top_.offset(t - 1);
       // Backprop output errors to the previous time step
       caffe_cpu_gemm(CblasNoTrans, CblasNoTrans, N_, H_, 4 * H_,
           (Dtype)1., pre_gate_diff + pre_gate_.offset(t),
           weight_h, (Dtype)0., clipped_.mutable_cpu_data());
-      if (clip) {
-        caffe_mul(N_*H_, clipped_.cpu_data(),
-          mask + clip_mask_.offset(t),
-          clipped_.mutable_cpu_data());
-      }
-      caffe_add(N_*H_, dh_t_1, clipped_.cpu_data(), dh_t_1);
+      if (clip)
+        caffe_mul(N_ * H_, clipped_.cpu_data(), mask + clip_mask_.offset(t), clipped_.mutable_cpu_data());
+      caffe_add(N_ * H_, dh_t_1, clipped_.cpu_data(), dh_t_1);
     }
   }
 
@@ -351,10 +353,10 @@ void LstmLayer<Dtype>::Backward_cpu(
 }
 
 #ifdef CPU_ONLY
-STUB_GPU(LstmLayer);
+// STUB_GPU(OneStepShortTermMemoryLayer);
 #endif
 
-INSTANTIATE_CLASS(LstmLayer);
-REGISTER_LAYER_CLASS(Lstm);
+INSTANTIATE_CLASS(OneStepShortTermMemoryLayer);
+REGISTER_LAYER_CLASS(OneStepShortTermMemory);
 
 }  // namespace caffe

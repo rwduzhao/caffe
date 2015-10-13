@@ -1,10 +1,16 @@
-/**
- * @brief Long-short term memory layer.
- * TODO(dox): thorough documentation for Forward, Backward, and proto params.
- */
+/*=============================================================================
+#     FileName: one_step_short_term_memory_layer.hpp
+#   Desciption: One step short term memeory layer
+#       Author: rwduzhao
+#        Email: rw.du.zhao@gmail.com
+#     HomePage: rw.du.zhao@gmail.com
+#      Version: 0.0.1
+#   LastChange: 2015-10-08 21:16:51
+#      History:
+=============================================================================*/
 
-#ifndef __CAFFE_LAYERS_LSTM_LAYER_HPP__
-#define __CAFFE_LAYERS_LSTM_LAYER_HPP__
+#ifndef __CAFFE_LAYERS_ONE_STEP_SHORT_TERM_MEMORY_LAYER_HPP__
+#define __CAFFE_LAYERS_ONE_STEP_SHORT_TERM_MEMORY_LAYER_HPP__
 
 #include <string>
 #include <utility>
@@ -22,22 +28,21 @@
 namespace caffe {
 
 template <typename Dtype>
-class LstmLayer : public Layer<Dtype> {
+class OneStepShortTermMemoryLayer : public Layer<Dtype> {
 
 public:
-  explicit LstmLayer(const LayerParameter& param)
-      : Layer<Dtype>(param) {}
+  explicit OneStepShortTermMemoryLayer(const LayerParameter& param) : Layer<Dtype>(param) {}
   virtual void LayerSetUp(const vector<Blob<Dtype>*>& bottom, const vector<Blob<Dtype>*>& top);
   virtual void Reshape(const vector<Blob<Dtype>*>& bottom, const vector<Blob<Dtype>*>& top);
 
-  virtual inline const char* type() const { return "Lstm"; }
+  virtual inline const char* type() const { return "OneStepShortTermMemory"; }
   virtual bool IsRecurrent() const { return true; }
 
 protected:
   virtual void Forward_cpu(const vector<Blob<Dtype>*>& bottom, const vector<Blob<Dtype>*>& top);
-  virtual void Forward_gpu(const vector<Blob<Dtype>*>& bottom, const vector<Blob<Dtype>*>& top);
+  // virtual void Forward_gpu(const vector<Blob<Dtype>*>& bottom, const vector<Blob<Dtype>*>& top);
   virtual void Backward_cpu(const vector<Blob<Dtype>*>& top, const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom);
-  virtual void Backward_gpu(const vector<Blob<Dtype>*>& top, const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom);
+  // virtual void Backward_gpu(const vector<Blob<Dtype>*>& top, const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom);
 
   int I_; // input dimension
   int H_; // num of hidden units
@@ -69,4 +74,4 @@ protected:
 
 }  // namespace caffe
 
-#endif  // __CAFFE_LAYERS_LSTM_LAYER_HPP__
+#endif  // __CAFFE_LAYERS_ONE_STEP_SHORT_TERM_MEMORY_LAYER_HPP__

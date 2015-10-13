@@ -1,10 +1,16 @@
-/**
- * @brief Long-short term memory layer.
- * TODO(dox): thorough documentation for Forward, Backward, and proto params.
- */
+/*=============================================================================
+#     FileName: one_step_unified_forget_gate_memory_layer.hpp
+#   Desciption: One step unified forget gate memory layer
+#       Author: rwduzhao
+#        Email: rw.du.zhao@gmail.com
+#     HomePage: rw.du.zhao@gmail.com
+#      Version: 0.0.1
+#   LastChange: 2015-10-12 18:40:03
+#      History:
+=============================================================================*/
 
-#ifndef __CAFFE_LAYERS_LSTM_LAYER_HPP__
-#define __CAFFE_LAYERS_LSTM_LAYER_HPP__
+#ifndef __CAFFE_LAYERS_ONE_STEP_UNIFIED_FORGET_GATE_MEMORY_LAYER_HPP__
+#define __CAFFE_LAYERS_ONE_STEP_UNIFIED_FORGET_GATE_MEMORY_LAYER_HPP__
 
 #include <string>
 #include <utility>
@@ -22,15 +28,14 @@
 namespace caffe {
 
 template <typename Dtype>
-class LstmLayer : public Layer<Dtype> {
+class OneStepUnifiedForgetGateMemoryLayer : public Layer<Dtype> {
 
 public:
-  explicit LstmLayer(const LayerParameter& param)
-      : Layer<Dtype>(param) {}
+  explicit OneStepUnifiedForgetGateMemoryLayer(const LayerParameter& param) : Layer<Dtype>(param) {}
   virtual void LayerSetUp(const vector<Blob<Dtype>*>& bottom, const vector<Blob<Dtype>*>& top);
   virtual void Reshape(const vector<Blob<Dtype>*>& bottom, const vector<Blob<Dtype>*>& top);
 
-  virtual inline const char* type() const { return "Lstm"; }
+  virtual inline const char* type() const { return "OneStepUnifiedForgetGateMemory"; }
   virtual bool IsRecurrent() const { return true; }
 
 protected:
@@ -39,10 +44,11 @@ protected:
   virtual void Backward_cpu(const vector<Blob<Dtype>*>& top, const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom);
   virtual void Backward_gpu(const vector<Blob<Dtype>*>& top, const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom);
 
-  int I_; // input dimension
-  int H_; // num of hidden units
-  int T_; // length of sequence
-  int N_; // batch size
+  int input_dim_; // input dimension
+  int hidden_dim_; // num of hidden units
+  int extra_dim_;
+  int time_step_; // length of sequence
+  int batch_size_; // batch size
 
   Dtype clipping_threshold_; // threshold for clipped gradient
 
@@ -50,6 +56,7 @@ protected:
   Blob<Dtype> clip_multiplier_;
 
   Blob<Dtype> top_;
+  Blob<Dtype> unified_pre_gate_;
   Blob<Dtype> pre_gate_;  // gate values before nonlinearity
   Blob<Dtype> gate_;      // gate values after nonlinearity
   Blob<Dtype> cell_;      // memory cell
@@ -57,6 +64,7 @@ protected:
   Blob<Dtype> clip_mask_; // mask for sequence clipping
 
   Blob<Dtype> c_0_; // previous cell state value
+  Blob<Dtype> e_0_; // previous hidden activation value
   Blob<Dtype> h_0_; // previous hidden activation value
   Blob<Dtype> c_T_; // next cell state value
   Blob<Dtype> h_T_; // next hidden activation value
@@ -69,4 +77,4 @@ protected:
 
 }  // namespace caffe
 
-#endif  // __CAFFE_LAYERS_LSTM_LAYER_HPP__
+#endif  // __CAFFE_LAYERS_ONE_STEP_UNIFIED_FORGET_GATE_MEMORY_LAYER_HPP__

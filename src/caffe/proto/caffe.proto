@@ -356,6 +356,10 @@ message LayerParameter {
   optional ROIPoolingParameter roi_pooling_param = 8266711;
   optional CrossRegionsPoolingParameter cross_regions_pooling_param = 8266712;
   optional LSTMParameter lstm_param = 8266713;
+  optional OneStepShortTermMemoryParameter one_step_short_memory_param = 8266714;
+  optional OneStepForgetGateMemoryParameter one_step_forget_gate_memory_param = 8266715;
+  optional OneStepUnifiedForgetGateMemoryParameter one_step_unified_forget_gate_memory_param = 8266716;
+  optional OneStepRecurrentMemoryParameter one_step_recurrent_memory_param = 8266717;
 }
 
 // Message that stores parameters used to apply transformation
@@ -1246,6 +1250,42 @@ message CrossRegionsPoolingParameter {
 
 // Message that stores parameters used by LSTMParameter
 message LSTMParameter {
+  optional uint32 num_output = 1; // The number of outputs for the layer
+  optional float clipping_threshold = 2 [default = 0.0];
+  optional FillerParameter weight_filler = 3; // The filler for weight
+  optional FillerParameter bias_filler = 4; // The filler for the bias
+  optional uint32 batch_size = 5 [default = 1];
+}
+
+// Message that stores parameters used by OneStepShortTermMemoryParameter
+message OneStepShortTermMemoryParameter {
+  optional uint32 num_output = 1; // The number of outputs for the layer
+  optional float clipping_threshold = 2 [default = 0.0];
+  optional FillerParameter weight_filler = 3; // The filler for weight
+  optional FillerParameter bias_filler = 4; // The filler for the bias
+  optional uint32 batch_size = 5 [default = 1];
+}
+
+// Message that stores parameters used by OneStepForgetGateMemoryParameter
+message OneStepForgetGateMemoryParameter {
+  optional uint32 num_output = 1; // The number of outputs for the layer
+  optional float clipping_threshold = 2 [default = 0.0];
+  optional FillerParameter weight_filler = 3; // The filler for weight
+  optional FillerParameter bias_filler = 4; // The filler for the bias
+  optional uint32 batch_size = 5 [default = 1];
+}
+
+// Message that stores parameters used by OneStepRecurrentMemoryParameter
+message OneStepUnifiedForgetGateMemoryParameter {
+  optional uint32 num_output = 1; // The number of outputs for the layer
+  optional float clipping_threshold = 2 [default = 0.0];
+  optional FillerParameter weight_filler = 3; // The filler for weight
+  optional FillerParameter bias_filler = 4; // The filler for the bias
+  optional uint32 batch_size = 5 [default = 1];
+}
+
+// Message that stores parameters used by OneStepRecurrentMemoryParameter
+message OneStepRecurrentMemoryParameter {
   optional uint32 num_output = 1; // The number of outputs for the layer
   optional float clipping_threshold = 2 [default = 0.0];
   optional FillerParameter weight_filler = 3; // The filler for weight
