@@ -60,7 +60,7 @@ void OneStepForgetGateMemoryLayer<Dtype>::Forward_gpu(
     const Dtype *e_t_1 = t > 0 ? (e_t - e_0_.offset(1)) : e_0_.gpu_data();
 
     // extra-to-hidden propagation
-    caffe_gpu_gemm(CblasNoTrans, CblasTrans, batch_size_, extra_dim_, hidden_dim_, (Dtype)1.,
+    caffe_gpu_gemm(CblasNoTrans, CblasTrans, batch_size_, 1 * hidden_dim_, extra_dim_, (Dtype)1.,
                    e_t_1, weight_e, (Dtype)1., pre_gate_data + pre_gate_.offset(t));
 
     caffe_gpu_sigmoid(batch_size_ * hidden_dim_, pre_o_t, o_t);
@@ -116,7 +116,7 @@ void OneStepForgetGateMemoryLayer<Dtype>::Backward_gpu(
     // caffe_gpu_gemm(CblasTrans, CblasNoTrans, 1 * hidden_dim_, hidden_dim_, (time_step_ - 1) * batch_size_, (Dtype)1.,
     //                pre_gate_diff + pre_gate_.offset(1), top_data, (Dtype)1., this->blobs_[1]->mutable_gpu_diff());
     // add gradient from previous time-step
-    caffe_gpu_gemm(CblasTrans, CblasNoTrans, 1 * hidden_dim_, extra_dim_, 1 * batch_size_, (Dtype)1.,  //TODO
+    caffe_gpu_gemm(CblasTrans, CblasNoTrans, 1 * hidden_dim_, extra_dim_, 1 * batch_size_, (Dtype)1.,
                    pre_gate_diff, e_0_.gpu_data(), (Dtype)1., this->blobs_[1]->mutable_gpu_diff());
   }
   if (this->param_propagate_down_[2]) {

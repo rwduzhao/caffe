@@ -108,12 +108,12 @@ void OneStepUnifiedForgetGateMemoryLayer<Dtype>::Reshape(
   extra_shape.push_back(extra_dim_);
   e_0_.Reshape(extra_shape);
 
-  vector<int> unified_pregate_shape;
-  unified_pregate_shape.push_back(time_step_);
-  unified_pregate_shape.push_back(batch_size_);
-  unified_pregate_shape.push_back(1);
-  unified_pregate_shape.push_back(1);
-  unified_pre_gate_.Reshape(unified_pregate_shape);
+  vector<int> unified_pre_gate_shape;
+  unified_pre_gate_shape.push_back(time_step_);
+  unified_pre_gate_shape.push_back(batch_size_);
+  unified_pre_gate_shape.push_back(1);
+  unified_pre_gate_shape.push_back(1);
+  unified_pre_gate_.Reshape(unified_pre_gate_shape);
 
   // gate and pre_gate
   vector<int> gate_shape;
