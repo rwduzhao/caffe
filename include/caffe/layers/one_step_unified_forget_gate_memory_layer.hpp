@@ -44,35 +44,27 @@ protected:
   virtual void Backward_cpu(const vector<Blob<Dtype>*>& top, const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom);
   virtual void Backward_gpu(const vector<Blob<Dtype>*>& top, const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom);
 
+  int num_gate_;
+  int time_step_; // length of sequence
+  int batch_size_; // batch size
   int input_dim_; // input dimension
   int hidden_dim_; // num of hidden units
   int extra_dim_;
-  int time_step_; // length of sequence
-  int batch_size_; // batch size
+  int unified_dim_;
 
   Dtype clipping_threshold_; // threshold for clipped gradient
 
   Blob<Dtype> bias_multiplier_;
-  Blob<Dtype> clip_multiplier_;
 
   Blob<Dtype> top_;
-  Blob<Dtype> unified_pre_gate_;
-  Blob<Dtype> pre_gate_;  // gate values before nonlinearity
   Blob<Dtype> gate_;      // gate values after nonlinearity
+  Blob<Dtype> pre_gate_;  // gate values before nonlinearity
+  Blob<Dtype> unified_pre_gate_;
   Blob<Dtype> cell_;      // memory cell
-  Blob<Dtype> tanh_cell_; // tanh(memory cell)
-  Blob<Dtype> clip_mask_; // mask for sequence clipping
 
   Blob<Dtype> c_0_; // previous cell state value
   Blob<Dtype> e_0_; // previous hidden activation value
   Blob<Dtype> h_0_; // previous hidden activation value
-  Blob<Dtype> c_T_; // next cell state value
-  Blob<Dtype> h_T_; // next hidden activation value
-
-  // intermediate values
-  Blob<Dtype> fdc_;
-  Blob<Dtype> ig_;
-  Blob<Dtype> clipped_;
 };
 
 }  // namespace caffe

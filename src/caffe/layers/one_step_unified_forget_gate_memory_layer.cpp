@@ -26,21 +26,15 @@ void OneStepUnifiedForgetGateMemoryLayer<Dtype>::LayerSetUp(
   const vector<Blob<Dtype>*>& bottom,
   const vector<Blob<Dtype>*>& top) {
 
+  num_gate_ = 1;  // output gate only
+  unified_dim_ = 1;
+
   const OneStepUnifiedForgetGateMemoryParameter layer_param = this->layer_param_.one_step_unified_forget_gate_memory_param();
   clipping_threshold_ = layer_param.clipping_threshold();
   hidden_dim_ = layer_param.num_output();
 
-  vector<int> clip_mul_shape(1, hidden_dim_);
-  clip_multiplier_.Reshape(clip_mul_shape);
-  caffe_set(clip_multiplier_.count(), Dtype(1), clip_multiplier_.mutable_cpu_data());
-
-  if (this->blobs_.size() == 3) {
-    // blobs_[0]: weight_i (1 * hidden_dim_ by input_dim_)
-    // blobs_[1]: weight_e (1 * hidden_dim_ by hidden_dim_)
-    // blobs_[2]: bias (1 * hidden_dim_)
+  if (this->blobs_.size() == 4)
     this->param_propagate_down_.resize(this->blobs_.size(), true);
-  }
-
 }
 
 template <typename Dtype>
@@ -52,11 +46,11 @@ void OneStepUnifiedForgetGateMemoryLayer<Dtype>::Reshape(
 
   // check ups
   // input
-  const Blob<Dtype> *x_0 = bottom[0];
+  const Blob<Dtype> *input_blob = bottom[0];
   time_step_ = 1;
-  batch_size_ = x_0->num() / time_step_;
-  input_dim_ = x_0->channels();
-  CHECK_EQ(input_dim_, x_0->count() / x_0->num());
+  batch_size_ = input_blob->num() / time_step_;
+  input_dim_ = input_blob->channels();
+  CHECK_EQ(input_dim_, input_blob->count() / input_blob->num());
   // c_0
   const Blob<Dtype> *c_0 = bottom[1];
   CHECK_EQ(batch_size_, c_0->num());
@@ -67,76 +61,91 @@ void OneStepUnifiedForgetGateMemoryLayer<Dtype>::Reshape(
   extra_dim_ = e_0->channels();
 
   if (this->blobs_.size() == 0) {  // init weights and biases
-    this->blobs_.resize(3);
+    const int num_blob = 4;
+    this->blobs_.resize(num_blob);
     this->param_propagate_down_.resize(this->blobs_.size(), true);
 
     shared_ptr<Filler<Dtype> > weight_filler(GetFiller<Dtype>(layer_param.weight_filler()));
 
-    // weight_hi
-    vector<int> weight_shape;
-    weight_shape.push_back(1);
-    weight_shape.push_back(input_dim_);
-    this->blobs_[0].reset(new Blob<Dtype>(weight_shape));
-    weight_filler->Fill(this->blobs_[0].get());
-
-    // weight_he
-    weight_shape.clear();
-    weight_shape.push_back(1);
-    weight_shape.push_back(extra_dim_);
-    this->blobs_[1].reset(new Blob<Dtype>(weight_shape));
-    weight_filler->Fill(this->blobs_[1].get());
-
-    // bias term
-    vector<int> bias_shape(1, 1);
-    this->blobs_[2].reset(new Blob<Dtype>(bias_shape));
+    // bias
+    int blob_id = 0;
+    vector<int> bias_shape(1, num_gate_ * 1);
+    this->blobs_[blob_id].reset(new Blob<Dtype>(bias_shape));
     shared_ptr<Filler<Dtype> > bias_filler(GetFiller<Dtype>(layer_param.bias_filler()));
-    bias_filler->Fill(this->blobs_[2].get());
+    bias_filler->Fill(this->blobs_[blob_id].get());
+
+    vector<int> weight_shape;
+    // weight_i
+    blob_id = 1;
+    weight_shape.clear();
+    weight_shape.push_back(num_gate_ * 1);
+    weight_shape.push_back(input_dim_);
+    this->blobs_[blob_id].reset(new Blob<Dtype>(weight_shape));
+    weight_filler->Fill(this->blobs_[blob_id].get());
+    // weight_h
+    blob_id = 2;
+    weight_shape.clear();
+    weight_shape.push_back(num_gate_ * 1);
+    weight_shape.push_back(hidden_dim_);
+    this->blobs_[blob_id].reset(new Blob<Dtype>(weight_shape));
+    weight_filler->Fill(this->blobs_[blob_id].get());
+    // weight_e
+    blob_id = 3;
+    weight_shape.clear();
+    weight_shape.push_back(num_gate_ * 1);
+    weight_shape.push_back(extra_dim_);
+    this->blobs_[blob_id].reset(new Blob<Dtype>(weight_shape));
+    weight_filler->Fill(this->blobs_[blob_id].get());
   }
 
+  vector<int> blob_shape;
+
   // c_0
-  vector<int> cell_shape;
-  cell_shape.push_back(batch_size_);
-  cell_shape.push_back(hidden_dim_);
-  c_0_.Reshape(cell_shape);
-  c_T_.Reshape(cell_shape);
-  h_T_.Reshape(cell_shape);
+  blob_shape.clear();
+  blob_shape.push_back(batch_size_);
+  blob_shape.push_back(hidden_dim_);
+  c_0_.Reshape(blob_shape);
+  // h_0
+  h_0_.Reshape(blob_shape);
 
   // e_0
-  vector<int> extra_shape;
-  extra_shape.clear();
-  extra_shape.push_back(batch_size_);
-  extra_shape.push_back(extra_dim_);
-  e_0_.Reshape(extra_shape);
+  blob_shape.clear();
+  blob_shape.push_back(batch_size_);
+  blob_shape.push_back(extra_dim_);
+  e_0_.Reshape(blob_shape);
 
-  vector<int> unified_pre_gate_shape;
-  unified_pre_gate_shape.push_back(time_step_);
-  unified_pre_gate_shape.push_back(batch_size_);
-  unified_pre_gate_shape.push_back(1);
-  unified_pre_gate_shape.push_back(1);
-  unified_pre_gate_.Reshape(unified_pre_gate_shape);
+  // unified_pre_gate
+  blob_shape.clear();
+  blob_shape.push_back(time_step_);
+  blob_shape.push_back(batch_size_);
+  blob_shape.push_back(num_gate_);
+  blob_shape.push_back(unified_dim_);
+  unified_pre_gate_.Reshape(blob_shape);
+  // pre_gate
+  blob_shape.clear();
+  blob_shape.push_back(time_step_);
+  blob_shape.push_back(batch_size_);
+  blob_shape.push_back(num_gate_);
+  blob_shape.push_back(hidden_dim_);
+  pre_gate_.Reshape(blob_shape);
+  // gate
+  gate_.Reshape(blob_shape);
 
-  // gate and pre_gate
-  vector<int> gate_shape;
-  gate_shape.push_back(time_step_);
-  gate_shape.push_back(batch_size_);
-  gate_shape.push_back(1);
-  gate_shape.push_back(hidden_dim_);
-  pre_gate_.Reshape(gate_shape);
-  gate_.Reshape(gate_shape);
-
-  // top and cell
-  vector<int> original_top_shape;
-  original_top_shape.push_back(time_step_ * batch_size_);
-  original_top_shape.push_back(hidden_dim_);
-  top[0]->Reshape(original_top_shape);
-  vector<int> top_shape;
-  top_shape.push_back(time_step_);
-  top_shape.push_back(batch_size_);
-  top_shape.push_back(hidden_dim_);
-  top_.Reshape(top_shape);
+  // original top
+  blob_shape.clear();
+  blob_shape.push_back(time_step_ * batch_size_);
+  blob_shape.push_back(hidden_dim_);
+  top[0]->Reshape(blob_shape);
+  // top
+  blob_shape.clear();
+  blob_shape.push_back(time_step_);
+  blob_shape.push_back(batch_size_);
+  blob_shape.push_back(hidden_dim_);
+  top_.Reshape(blob_shape);
   top_.ShareData(*top[0]);
   top_.ShareDiff(*top[0]);
-  cell_.Reshape(top_shape);
+  // cell
+  cell_.Reshape(blob_shape);
 
   // bias multiplier
   vector<int> multiplier_shape(1, batch_size_ * time_step_);

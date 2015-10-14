@@ -44,11 +44,12 @@ protected:
   virtual void Backward_cpu(const vector<Blob<Dtype>*>& top, const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom);
   virtual void Backward_gpu(const vector<Blob<Dtype>*>& top, const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom);
 
+  int num_gate_;
+  int time_step_; // length of sequence
+  int batch_size_; // batch size
   int input_dim_; // input dimension
   int hidden_dim_; // num of hidden units
   int extra_dim_;
-  int time_step_; // length of sequence
-  int batch_size_; // batch size
 
   Dtype clipping_threshold_; // threshold for clipped gradient
 
