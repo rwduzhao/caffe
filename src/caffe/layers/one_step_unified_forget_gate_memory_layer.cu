@@ -158,6 +158,7 @@ void OneStepUnifiedForgetGateMemoryLayer<Dtype>::Backward_gpu(
   const int bias_blob_id = 0;
   if (this->param_propagate_down_[bias_blob_id]) {
     Dtype *bias_diff = this->blobs_[bias_blob_id]->mutable_gpu_diff();
+    caffe_gpu_set(this->blobs_[bias_blob_id]->count(), (Dtype)0.0, bias_diff);
     caffe_gpu_gemv(CblasTrans, time_step_ * batch_size_, num_gate_ * unified_dim_,
                    (Dtype)1., unified_pre_gate_diff, bias_multiplier_.gpu_data(), (Dtype)1., bias_diff);
   }
@@ -165,6 +166,7 @@ void OneStepUnifiedForgetGateMemoryLayer<Dtype>::Backward_gpu(
   const int weight_i_blob_id = 1;
   if (this->param_propagate_down_[weight_i_blob_id]) {
     Dtype *weight_i_diff = this->blobs_[weight_i_blob_id]->mutable_gpu_diff();
+    caffe_gpu_set(this->blobs_[weight_i_blob_id]->count(), (Dtype)0.0, weight_i_diff);
     caffe_gpu_gemm(CblasTrans, CblasNoTrans, num_gate_ * unified_dim_, input_dim_, time_step_ * batch_size_,
                    (Dtype)1., unified_pre_gate_diff, bottom[0]->gpu_data(), (Dtype)1., weight_i_diff);
   }
@@ -172,6 +174,7 @@ void OneStepUnifiedForgetGateMemoryLayer<Dtype>::Backward_gpu(
   const int weight_h_blob_id = 2;
   if (this->param_propagate_down_[weight_h_blob_id]) {
     Dtype *weight_h_diff = this->blobs_[weight_h_blob_id]->mutable_gpu_diff();
+    caffe_gpu_set(this->blobs_[weight_h_blob_id]->count(), (Dtype)0.0, weight_h_diff);
     caffe_gpu_gemm(CblasTrans, CblasNoTrans, num_gate_ * unified_dim_, hidden_dim_, 1 * batch_size_,
                    (Dtype)1., unified_pre_gate_diff, h_0_.gpu_data(), (Dtype)1., weight_h_diff);
   }
@@ -179,6 +182,7 @@ void OneStepUnifiedForgetGateMemoryLayer<Dtype>::Backward_gpu(
   const int weight_e_blob_id = 3;
   if (this->param_propagate_down_[weight_e_blob_id]) {
     Dtype *weight_e_diff = this->blobs_[weight_e_blob_id]->mutable_gpu_diff();
+    caffe_gpu_set(this->blobs_[weight_e_blob_id]->count(), (Dtype)0.0, weight_e_diff);
     caffe_gpu_gemm(CblasTrans, CblasNoTrans, num_gate_ * unified_dim_, extra_dim_, 1 * batch_size_,
                    (Dtype)1., unified_pre_gate_diff, e_0_.gpu_data(), (Dtype)1., weight_e_diff);
   }

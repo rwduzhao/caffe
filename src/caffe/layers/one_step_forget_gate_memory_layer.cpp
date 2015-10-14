@@ -149,6 +149,7 @@ template <typename Dtype>
 void OneStepForgetGateMemoryLayer<Dtype>::Forward_cpu(
   const vector<Blob<Dtype>*>& bottom,
   const vector<Blob<Dtype>*>& top) {
+  NOT_IMPLEMENTED;
 }
 
 template <typename Dtype>
@@ -156,6 +157,7 @@ void OneStepForgetGateMemoryLayer<Dtype>::Backward_cpu(
   const vector<Blob<Dtype>*>& top,
   const vector<bool>& propagate_down,
   const vector<Blob<Dtype>*>& bottom) {
+  NOT_IMPLEMENTED;
 }
 
 #ifdef CPU_ONLY
