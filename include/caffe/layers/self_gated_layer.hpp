@@ -1,16 +1,16 @@
 /*=============================================================================
-#     FileName: one_step_forget_gate_memory_layer.hpp
-#   Desciption: one step forget gate memory layer
+#     FileName: self_gated_layer.hpp
+#   Desciption: self gated layer
 #       Author: rwduzhao
 #        Email: rw.du.zhao@gmail.com
 #     HomePage: rw.du.zhao@gmail.com
 #      Version: 0.0.1
-#   LastChange: 2015-10-08 21:52:43
+#   LastChange: 2015-10-16 15:21:06
 #      History:
 =============================================================================*/
 
-#ifndef __CAFFE_LAYERS_ONE_STEP_FORGET_GATE_MEMORY_LAYER_HPP__
-#define __CAFFE_LAYERS_ONE_STEP_FORGET_GATE_MEMORY_LAYER_HPP__
+#ifndef __CAFFE_LAYERS_SELF_GATED_LAYER_HPP__
+#define __CAFFE_LAYERS_SELF_GATED_LAYER_HPP__
 
 #include <string>
 #include <utility>
@@ -28,14 +28,14 @@
 namespace caffe {
 
 template <typename Dtype>
-class OneStepForgetGateMemoryLayer : public Layer<Dtype> {
+class SelfGatedLayer : public Layer<Dtype> {
 
 public:
-  explicit OneStepForgetGateMemoryLayer(const LayerParameter& param) : Layer<Dtype>(param) {}
+  explicit SelfGatedLayer(const LayerParameter& param) : Layer<Dtype>(param) {}
   virtual void LayerSetUp(const vector<Blob<Dtype>*>& bottom, const vector<Blob<Dtype>*>& top);
   virtual void Reshape(const vector<Blob<Dtype>*>& bottom, const vector<Blob<Dtype>*>& top);
 
-  virtual inline const char* type() const { return "OneStepForgetGateMemory"; }
+  virtual inline const char* type() const { return "SelfGated"; }
   virtual bool IsRecurrent() const { return true; }
 
 protected:
@@ -44,27 +44,28 @@ protected:
   virtual void Backward_cpu(const vector<Blob<Dtype>*>& top, const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom);
   virtual void Backward_gpu(const vector<Blob<Dtype>*>& top, const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom);
 
+  int time_step_;
   int num_gate_;
-  int time_step_; // length of sequence
-  int batch_size_; // batch size
-  int input_dim_; // input dimension
-  int hidden_dim_; // num of hidden units
-  int extra_dim_;
+  int batch_size_;
+  int input_dim_;
+  int hidden_dim_;
+  int num_gate_layer_;
+  int gate_net_dim_;
+  vector<int> gate_layer_input_dims_;
+  vector<int> gate_layer_output_dims_;
 
-  Dtype clipping_threshold_; // threshold for clipped gradient
-
-  Blob<Dtype> bias_multiplier_;
+  Dtype clipping_threshold_;
 
   Blob<Dtype> top_;
-  Blob<Dtype> gate_;      // gate values after nonlinearity
-  Blob<Dtype> pre_gate_;  // gate values before nonlinearity
-  Blob<Dtype> cell_;      // memory cell
+  Blob<Dtype> gate_;
+  Blob<Dtype> pre_gate_;
+  Blob<Dtype> bias_multiplier_;
 
-  Blob<Dtype> c_0_; // previous cell state value
-  Blob<Dtype> e_0_; // previous hidden activation value
-  Blob<Dtype> h_0_; // previous hidden activation value
+  vector<shared_ptr<Blob<Dtype> > > gate_net_tops_;
+  vector<shared_ptr<Blob<Dtype> > > gate_net_pre_tops_;
+  vector<shared_ptr<Blob<Dtype> > > gate_net_bias_multipliers_;
 };
 
 }  // namespace caffe
 
-#endif  // __CAFFE_LAYERS_ONE_STEP_FORGET_GATE_MEMORY_LAYER_HPP__
+#endif  // __CAFFE_LAYERS_SELF_GATED_LAYER_HPP__

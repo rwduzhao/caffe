@@ -360,6 +360,7 @@ message LayerParameter {
   optional OneStepForgetGateMemoryParameter one_step_forget_gate_memory_param = 8266715;
   optional OneStepUnifiedForgetGateMemoryParameter one_step_unified_forget_gate_memory_param = 8266716;
   optional OneStepRecurrentMemoryParameter one_step_recurrent_memory_param = 8266717;
+  optional SelfGatedParameter self_gated_param = 8266718;
 }
 
 // Message that stores parameters used to apply transformation
@@ -1275,13 +1276,24 @@ message OneStepForgetGateMemoryParameter {
   optional uint32 batch_size = 5 [default = 1];
 }
 
-// Message that stores parameters used by OneStepRecurrentMemoryParameter
+// Message that stores parameters used by OneStepunifiedForgetGateMemoryParameter
 message OneStepUnifiedForgetGateMemoryParameter {
   optional uint32 num_output = 1; // The number of outputs for the layer
   optional float clipping_threshold = 2 [default = 0.0];
   optional FillerParameter weight_filler = 3; // The filler for weight
   optional FillerParameter bias_filler = 4; // The filler for the bias
   optional uint32 batch_size = 5 [default = 1];
+}
+
+// Message that stores parameters used by SelfGatedLayer
+message SelfGatedParameter {
+  optional uint32 num_output = 1; // The number of outputs for the layer
+  optional float clipping_threshold = 2 [default = 0.0];
+  optional FillerParameter weight_filler = 3; // The filler for weight
+  optional FillerParameter bias_filler = 4; // The filler for the bias
+  optional uint32 batch_size = 5 [default = 1];
+  optional uint32 num_gate_layer = 6 [default = 1];
+  optional uint32 gate_net_dim = 7 [default = 0];
 }
 
 // Message that stores parameters used by OneStepRecurrentMemoryParameter

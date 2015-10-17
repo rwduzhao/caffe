@@ -1,6 +1,6 @@
 /*=============================================================================
 #     FileName: one_step_forget_gate_memory_layer.cu
-#   Desciption: One step forget gate memory layer
+#   Desciption: one step forget gate memory layer
 #       Author: rwduzhao
 #        Email: rw.du.zhao@gmail.com
 #     HomePage: rw.du.zhao@gmail.com
@@ -78,6 +78,27 @@ void OneStepForgetGateMemoryLayer<Dtype>::Forward_gpu(
     caffe_copy(batch_size_ * hidden_dim_, c_t_1, c_t);
     // c_t & gate -> h_t
     caffe_gpu_mul(batch_size_ * hidden_dim_, o_t, c_t, h_t);
+  }
+  if (false) {
+    const Dtype *gate_data = gate_.cpu_data();
+    for (int r = 0; r < 10; ++r) {
+      for (int c = 0; c < 8; ++c)
+        printf("%0.4f ", gate_data[r * hidden_dim_ + c]);
+      printf(" ... ");
+      for (int c = hidden_dim_ - 2; c < hidden_dim_; ++c)
+        printf("%0.4f ", gate_data[r * hidden_dim_ + c]);
+      Dtype mean = 0;
+      Dtype max = 0;
+      for (int c = 0; c < hidden_dim_; ++c) {
+        const Dtype value = gate_data[r * hidden_dim_ + c];
+        mean += value;
+        if (value > max)
+          max = value;
+      }
+      mean /= Dtype(hidden_dim_);
+      printf("    mean: %0.4f, max: %0.4f\n", mean, max);
+    }
+    printf("\n");
   }
 }
 

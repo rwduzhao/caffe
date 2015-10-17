@@ -1,6 +1,6 @@
 /*=============================================================================
 #     FileName: one_step_forget_gate_memory_layer.cpp
-#   Desciption: One step forget gate memory layer
+#   Desciption: one step forget gate memory layer
 #       Author: rwduzhao
 #        Email: rw.du.zhao@gmail.com
 #     HomePage: rw.du.zhao@gmail.com
