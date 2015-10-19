@@ -94,7 +94,7 @@ void SelfGatedLayer<Dtype>::Backward_gpu(
   caffe_gpu_mul(gate_count, bottom_data, top_diff, gate_diff);
 
   // gate_diff -> last gate_net_top_diff
-  if (!is_last_unit_gated_) {
+  if (is_last_unit_gated_) {
     const Dtype *gate_diff = gate_.gpu_diff();
     Dtype *last_gate_net_top_diff = gate_net_tops_[gate_net_tops_.size() - 1]->mutable_gpu_diff();
     self_gated_layer_kernel_row_sum<Dtype><<<CAFFE_GET_BLOCKS(time_step_ * batch_size_ * num_gate_), CAFFE_CUDA_NUM_THREADS>>>(
@@ -127,6 +127,7 @@ void SelfGatedLayer<Dtype>::Backward_gpu(
     Dtype *bias_diff = this->blobs_[bias_blob_id]->mutable_gpu_diff();
     caffe_gpu_gemv(CblasTrans, time_step_ * batch_size_, gate_net_layer_output_dim,
                    Dtype(1.), gate_net_pre_top_diff, bias_multiplier_data, Dtype(0.), bias_diff);
+
     // gradient w.r.t. gate net bottom data
     if (gate_net_layer_id > 0 || propagate_down[bottom_id]) {
       const Dtype *weight_data = this->blobs_[weight_blob_id]->gpu_data();
@@ -143,6 +144,24 @@ void SelfGatedLayer<Dtype>::Backward_gpu(
     Dtype *bottom_diff = bottom[bottom_id]->mutable_gpu_diff();
     const int bottom_count = bottom[bottom_id]->count();
     caffe_gpu_mul(bottom_count, gate_data, top_diff, bottom_diff);
+  }
+
+  if (false) {
+    LOG(INFO) << "display gradients";
+    LOG(INFO) << "top diff amount: " << caffe_cpu_asum(top_.count(), top_.cpu_diff());
+    LOG(INFO) << "gate diff amount: " << caffe_cpu_asum(gate_.count(), gate_.cpu_diff());
+    if (is_last_unit_gated_)
+      LOG(INFO) << "last gate net top diff amount: " << caffe_cpu_asum(gate_net_tops_[gate_net_tops_.size() - 1]->count(), gate_net_tops_[gate_net_tops_.size() - 1]->cpu_diff());
+
+    for (int gate_net_layer_id = num_gate_net_layer_ - 1; gate_net_layer_id >= 0; --gate_net_layer_id) {
+      const int gate_net_layer_input_dim = gate_net_layer_input_dims_[gate_net_layer_id];
+      const int gate_net_layer_output_dim = gate_net_layer_output_dims_[gate_net_layer_id];
+
+      const int weight_blob_id = gate_net_layer_id * 2 + 0;
+      LOG(INFO) << "gate net weight[" << gate_net_layer_id << "] diff amount: " << caffe_cpu_asum(this->blobs_[weight_blob_id]->count(), this->blobs_[weight_blob_id]->cpu_diff());
+      const int bias_blob_id = gate_net_layer_id * 2 + 1;
+      LOG(INFO) << "gate net   bias[" << gate_net_layer_id << "] diff amount: " << caffe_cpu_asum(this->blobs_[bias_blob_id]->count(), this->blobs_[bias_blob_id]->cpu_diff());
+    }
   }
 }
 
