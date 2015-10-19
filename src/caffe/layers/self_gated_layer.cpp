@@ -23,92 +23,133 @@ namespace caffe {
 
 template <typename Dtype>
 void SelfGatedLayer<Dtype>::LayerSetUp(
-  const vector<Blob<Dtype>*>& bottom,
-  const vector<Blob<Dtype>*>& top) {
+  const vector<Blob<Dtype> *> &bottom,
+  const vector<Blob<Dtype> *> &top) {
 
   time_step_ = 1;  // force one time step
-  num_gate_ = 1;  // self gate only
+
+  num_gate_ = 1;  // output gate only
+
+  const SelfGatedParameter layer_param = this->layer_param_.self_gated_param();
+  num_gate_net_layer_ = layer_param.num_gate_net_layer();
+  CHECK_GE(num_gate_net_layer_, 1);
 
   const Blob<Dtype> *input_blob = bottom[0];
   input_dim_ = input_blob->channels();
+  CHECK_GE(input_dim_, 1);
 
-  const SelfGatedParameter layer_param = this->layer_param_.self_gated_param();
-  CHECK_GE(layer_param.num_gate_layer(), 1);
-  num_gate_layer_ = layer_param.num_gate_layer();
-  CHECK_GE(layer_param.gate_net_dim(), 0);
-  gate_net_dim_ = layer_param.gate_net_dim() > 0 ? layer_param.gate_net_dim() : input_dim_;
-  hidden_dim_ = layer_param.num_output();
+  // output_dim_ = layer_param.num_output();
+  output_dim_ = input_dim_;
+  CHECK_GE(output_dim_, 1);
+
+  const Blob<Dtype> *gate_net_input_blob = bottom[1];
+  gate_net_input_dim_ = gate_net_input_blob->channels();
+  CHECK_GE(gate_net_input_dim_, 1);
+
+  gate_net_hidden_dim_ = layer_param.gate_net_hidden_dim();
+  CHECK_GE(gate_net_hidden_dim_, 1);
+
+  is_last_unit_gated_ = layer_param.is_last_unit_gated();
+  gate_net_output_dim_ = is_last_unit_gated_ ? 1 : output_dim_;
+
   clipping_threshold_ = layer_param.clipping_threshold();
+  CHECK_GE(clipping_threshold_, 0.);
 
-  gate_layer_input_dims_.clear();
-  gate_layer_input_dims_.resize(num_gate_layer_);
-  gate_layer_output_dims_.clear();
-  gate_layer_output_dims_.resize(num_gate_layer_);
+  gate_net_layer_input_dims_.clear();
+  gate_net_layer_input_dims_.resize(num_gate_net_layer_);
+  gate_net_layer_output_dims_.clear();
+  gate_net_layer_output_dims_.resize(num_gate_net_layer_);
 
   if (this->blobs_.size() == 0) {  // init weights and biases
-    this->blobs_.resize(num_gate_layer_ * 2);
+    this->blobs_.resize(num_gate_net_layer_ * 2);  // pairs of weights and biases
 
-    for (int gate_net_layer_id = 0; gate_net_layer_id < num_gate_layer_; ++gate_net_layer_id) {
-      const int gate_layer_input_dim = gate_net_layer_id == 0 ? input_dim_ : num_gate_ * input_dim_;
-      const int gate_layer_output_dim = gate_net_layer_id < (num_gate_layer_ - 1) ? num_gate_ * gate_net_dim_ : num_gate_ * hidden_dim_;
-      gate_layer_input_dims_[gate_net_layer_id] = gate_layer_input_dim;
-      gate_layer_output_dims_[gate_net_layer_id] = gate_layer_output_dim;
+    for (int gate_net_layer_id = 0; gate_net_layer_id < num_gate_net_layer_; ++gate_net_layer_id) {
+      // calculate gate net input, output dims
+      const int gate_net_layer_input_dim = gate_net_layer_id == 0 ? gate_net_input_dim_ : num_gate_ * gate_net_hidden_dim_;
+      const int gate_net_layer_output_dim = gate_net_layer_id < (num_gate_net_layer_ - 1) ? num_gate_ * gate_net_hidden_dim_ : num_gate_ * gate_net_output_dim_;
 
-      // bias
-      const int bias_blob_id = gate_net_layer_id * 2;
-      vector<int> bias_shape(1, gate_layer_output_dim);
-      this->blobs_[bias_blob_id].reset(new Blob<Dtype>(bias_shape));
-      shared_ptr<Filler<Dtype> > bias_filler(GetFiller<Dtype>(layer_param.bias_filler()));
-      bias_filler->Fill(this->blobs_[bias_blob_id].get());
+      // assign gate net input, output dims
+      gate_net_layer_input_dims_[gate_net_layer_id] = gate_net_layer_input_dim;
+      gate_net_layer_output_dims_[gate_net_layer_id] = gate_net_layer_output_dim;
 
-      // weight
-      const int weight_blob_id = gate_net_layer_id * 2 + 1;
-      vector<int> weight_shape;
-      weight_shape.clear();
-      weight_shape.push_back(gate_layer_output_dim);
-      weight_shape.push_back(gate_layer_input_dim);
-      this->blobs_[weight_blob_id].reset(new Blob<Dtype>(weight_shape));
+      // parameter blobs
+      vector<int> blob_shape;
+      // init gate net layer weight
+      const int weight_blob_id = gate_net_layer_id * 2 + 0;
+      blob_shape.clear();
+      blob_shape.push_back(gate_net_layer_output_dim);
+      blob_shape.push_back(gate_net_layer_input_dim);
+      this->blobs_[weight_blob_id].reset(new Blob<Dtype>(blob_shape));
       shared_ptr<Filler<Dtype> > weight_filler(GetFiller<Dtype>(layer_param.weight_filler()));
       weight_filler->Fill(this->blobs_[weight_blob_id].get());
+      // init gate net layer bias
+      const int bias_blob_id = gate_net_layer_id * 2 + 1;
+      blob_shape.clear();
+      blob_shape.push_back(gate_net_layer_output_dim);
+      this->blobs_[bias_blob_id].reset(new Blob<Dtype>(blob_shape));
+      shared_ptr<Filler<Dtype> > bias_filler(GetFiller<Dtype>(layer_param.bias_filler()));
+      bias_filler->Fill(this->blobs_[bias_blob_id].get());
     }
   } else {
-    CHECK_EQ(this->blobs_.size(), num_gate_layer_);
+    CHECK_EQ(this->blobs_.size(), num_gate_net_layer_ * 2);
 
-    for (int gate_net_layer_id = 0; gate_net_layer_id < num_gate_layer_; ++gate_net_layer_id) {
-      // bias
-      const int bias_blob_id = gate_net_layer_id * 2;
-      const int gate_layer_output_dim = this->blobs_[bias_blob_id]->num();
-      if (gate_net_layer_id < num_gate_layer_ - 1)
-        CHECK_EQ(gate_layer_output_dim, gate_net_dim_);
-      else
-        CHECK_EQ(gate_layer_output_dim, hidden_dim_);
-      // weight
-      const int weight_blob_id = gate_net_layer_id * 2 + 1;
-      CHECK_EQ(gate_layer_output_dim, this->blobs_[weight_blob_id]->num());
-      const int gate_layer_input_dim = this->blobs_[weight_blob_id]->channels();
+    for (int gate_net_layer_id = 0; gate_net_layer_id < num_gate_net_layer_; ++gate_net_layer_id) {
+      // check gate net layer input dim
+      const int weight_blob_id = gate_net_layer_id * 2 + 0;
+      const int gate_net_layer_input_dim = this->blobs_[weight_blob_id]->channels();
       if (gate_net_layer_id == 0)
-        CHECK_EQ(gate_layer_input_dim, input_dim_);
+        CHECK_EQ(gate_net_layer_input_dim, input_dim_);
       else
-        CHECK_EQ(gate_layer_input_dim, gate_layer_output_dims_[gate_net_layer_id - 1]);
+        CHECK_EQ(gate_net_layer_input_dim, gate_net_layer_output_dims_[gate_net_layer_id - 1]);
+      // check gate net layer output dim
+      const int gate_net_layer_output_dim = this->blobs_[weight_blob_id]->num();
+      if (gate_net_layer_id < num_gate_net_layer_ - 1)
+        CHECK_EQ(gate_net_layer_output_dim, num_gate_ * gate_net_hidden_dim_);
+      else
+        CHECK_EQ(gate_net_layer_output_dim, num_gate_ * gate_net_output_dim_);
+      const int bias_blob_id = gate_net_layer_id * 2 + 1;
+      CHECK_EQ(gate_net_layer_output_dim, this->blobs_[bias_blob_id]->num());
 
-      gate_layer_input_dims_[gate_net_layer_id] = gate_layer_input_dim;
-      gate_layer_output_dims_[gate_net_layer_id] = gate_layer_output_dim;
+      // assign gate net layer input, output dims
+      gate_net_layer_input_dims_[gate_net_layer_id] = gate_net_layer_input_dim;
+      gate_net_layer_output_dims_[gate_net_layer_id] = gate_net_layer_output_dim;
     }
   }
   this->param_propagate_down_.resize(this->blobs_.size(), true);
 
+  if (this->layer_param_.param_size() == 0) {
+    for (int gate_net_layer_id = 0; gate_net_layer_id < num_gate_net_layer_; ++gate_net_layer_id) {
+      ParamSpec *weight_param_spec = this->layer_param_.add_param();
+      weight_param_spec->set_lr_mult(1.);
+      weight_param_spec->set_decay_mult(1.);
+      ParamSpec *bias_param_spec = this->layer_param_.add_param();
+      bias_param_spec->set_lr_mult(2.);
+      bias_param_spec->set_decay_mult(0.);
+    }
+  }
+
+  if (is_last_unit_gated_) {
+    vector<int> blob_shape;
+    blob_shape.clear();
+    blob_shape.push_back(output_dim_);
+    last_gate_net_top_multiplier_.Reshape(blob_shape);
+    Dtype *last_gate_net_top_multiplier_data = last_gate_net_top_multiplier_.mutable_cpu_data();
+    const int last_gate_net_top_multiplier_count = last_gate_net_top_multiplier_.count();
+    caffe_set(last_gate_net_top_multiplier_count, Dtype(1.), last_gate_net_top_multiplier_data);
+  }
+
   gate_net_pre_tops_.clear();
-  gate_net_pre_tops_.resize(num_gate_layer_);
+  gate_net_pre_tops_.resize(num_gate_net_layer_);
   gate_net_tops_.clear();
-  gate_net_tops_.resize(num_gate_layer_);
-  for (int gate_net_layer_id = 0; gate_net_layer_id < num_gate_layer_; ++gate_net_layer_id) {
-    const int gate_layer_output_dim = gate_layer_output_dims_[gate_net_layer_id];
+  gate_net_tops_.resize(num_gate_net_layer_);
+  for (int gate_net_layer_id = 0; gate_net_layer_id < num_gate_net_layer_; ++gate_net_layer_id) {
+    const int gate_net_layer_output_dim = gate_net_layer_output_dims_[gate_net_layer_id];
     vector<int> blob_shape;
     blob_shape.clear();
     blob_shape.push_back(time_step_);
     blob_shape.push_back(1);
     blob_shape.push_back(num_gate_);
-    blob_shape.push_back(gate_layer_output_dim / num_gate_);
+    blob_shape.push_back(gate_net_layer_output_dim / num_gate_);
     gate_net_pre_tops_[gate_net_layer_id].reset(new Blob<Dtype>(blob_shape));
     gate_net_tops_[gate_net_layer_id].reset(new Blob<Dtype>(blob_shape));
   }
@@ -116,57 +157,63 @@ void SelfGatedLayer<Dtype>::LayerSetUp(
 
 template <typename Dtype>
 void SelfGatedLayer<Dtype>::Reshape(
-  const vector<Blob<Dtype>*>& bottom,
-  const vector<Blob<Dtype>*>& top) {
+  const vector<Blob<Dtype> *> &bottom,
+  const vector<Blob<Dtype> *> &top) {
 
-  // check ups
+  // check input size
   const Blob<Dtype> *input_blob = bottom[0];
   batch_size_ = input_blob->num() / time_step_;
-  CHECK_EQ(input_dim_, input_blob->count() / input_blob->num());
-
-  // bias multiplier
-  vector<int> multiplier_shape(1, time_step_ * batch_size_);
-  bias_multiplier_.Reshape(multiplier_shape);
-  caffe_set(bias_multiplier_.count(), Dtype(1), bias_multiplier_.mutable_cpu_data());
+  CHECK_EQ(input_dim_, input_blob->channels());
+  CHECK_EQ(input_dim_, input_blob->count() / time_step_ / batch_size_);
+  // check gate net input size
+  const Blob<Dtype> *gate_net_input_blob = bottom[1];
+  CHECK_EQ(batch_size_, gate_net_input_blob->num());
+  CHECK_EQ(gate_net_input_dim_, gate_net_input_blob->channels());
+  CHECK_EQ(gate_net_input_dim_, gate_net_input_blob->count() / time_step_ / batch_size_);
 
   vector<int> blob_shape;
 
-  // pre_gate_tops
-  for (int gate_net_layer_id = 0; gate_net_layer_id < num_gate_layer_; ++gate_net_layer_id) {
-    const int gate_layer_output_dim = gate_layer_output_dims_[gate_net_layer_id];
-    // gate_net_pre_tops and gate_net_tops
+  // bias multiplier
+  blob_shape.clear();
+  blob_shape.push_back(time_step_ * batch_size_);
+  bias_multiplier_.Reshape(blob_shape);
+  Dtype *bias_multiplier_data = bias_multiplier_.mutable_cpu_data();
+  const int bias_multiplier_count = bias_multiplier_.count();
+  caffe_set(bias_multiplier_count, Dtype(1.), bias_multiplier_data);
+
+  // gate_net_pre_tops, gate_net_tops
+  for (int gate_net_layer_id = 0; gate_net_layer_id < num_gate_net_layer_; ++gate_net_layer_id) {
+    const int gate_net_layer_output_dim = gate_net_layer_output_dims_[gate_net_layer_id];
     blob_shape.clear();
     blob_shape.push_back(time_step_);
     blob_shape.push_back(batch_size_);
     blob_shape.push_back(num_gate_);
-    blob_shape.push_back(gate_layer_output_dim / num_gate_);
+    blob_shape.push_back(gate_net_layer_output_dim / num_gate_);
     gate_net_pre_tops_[gate_net_layer_id]->Reshape(blob_shape);
     gate_net_tops_[gate_net_layer_id]->Reshape(blob_shape);
   }
 
-  // pre_gate and gate
+  // pre_gate, gate
   blob_shape.clear();
   blob_shape.push_back(time_step_);
   blob_shape.push_back(batch_size_);
   blob_shape.push_back(num_gate_);
-  blob_shape.push_back(hidden_dim_);
-  pre_gate_.Reshape(blob_shape);
+  blob_shape.push_back(output_dim_);
   gate_.Reshape(blob_shape);
-  pre_gate_.ShareData(*gate_net_pre_tops_[gate_net_pre_tops_.size() - 1]);
-  pre_gate_.ShareDiff(*gate_net_pre_tops_[gate_net_pre_tops_.size() - 1]);
-  gate_.ShareData(*gate_net_tops_[gate_net_tops_.size() - 1]);
-  gate_.ShareDiff(*gate_net_tops_[gate_net_tops_.size() - 1]);
+  if (!is_last_unit_gated_) {
+    gate_.ShareData(*gate_net_tops_[gate_net_tops_.size() - 1]);
+    gate_.ShareDiff(*gate_net_tops_[gate_net_tops_.size() - 1]);
+  }
 
-  // original top
+  // original top, top
   blob_shape.clear();
   blob_shape.push_back(time_step_ * batch_size_);
-  blob_shape.push_back(hidden_dim_);
+  blob_shape.push_back(output_dim_);
   top[0]->Reshape(blob_shape);
-  // top
   blob_shape.clear();
   blob_shape.push_back(time_step_);
   blob_shape.push_back(batch_size_);
-  blob_shape.push_back(hidden_dim_);
+  blob_shape.push_back(output_dim_);
   top_.Reshape(blob_shape);
   top_.ShareData(*top[0]);
   top_.ShareDiff(*top[0]);

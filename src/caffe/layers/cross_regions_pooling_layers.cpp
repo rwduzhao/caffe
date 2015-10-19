@@ -47,6 +47,13 @@ void CrossRegionsPoolingLayer<Dtype>::Reshape(
   Dtype *image_areas_data = image_areas_.mutable_cpu_data();
   for (int image_id = 0; image_id < num_image_; ++image_id)
     image_areas_data[image_id] = scaled_image_areas_data[image_id];
+
+  if (top.size() >= 2) {
+    vector<int> blob_shape;
+    blob_shape.push_back(num_roi);
+    blob_shape.push_back(top_channels_);
+    top[1]->Reshape(blob_shape);
+  }
 }
 
 template <typename Dtype>

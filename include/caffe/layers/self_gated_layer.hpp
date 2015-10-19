@@ -48,18 +48,22 @@ protected:
   int num_gate_;
   int batch_size_;
   int input_dim_;
-  int hidden_dim_;
-  int num_gate_layer_;
-  int gate_net_dim_;
-  vector<int> gate_layer_input_dims_;
-  vector<int> gate_layer_output_dims_;
+  int output_dim_;
+  int num_gate_net_layer_;
+  int gate_net_input_dim_;
+  int gate_net_hidden_dim_;
+  int gate_net_output_dim_;
+  vector<int> gate_net_layer_input_dims_;
+  vector<int> gate_net_layer_output_dims_;
 
   Dtype clipping_threshold_;
 
   Blob<Dtype> top_;
   Blob<Dtype> gate_;
-  Blob<Dtype> pre_gate_;
   Blob<Dtype> bias_multiplier_;
+
+  bool is_last_unit_gated_;
+  Blob<Dtype> last_gate_net_top_multiplier_;
 
   vector<shared_ptr<Blob<Dtype> > > gate_net_tops_;
   vector<shared_ptr<Blob<Dtype> > > gate_net_pre_tops_;
