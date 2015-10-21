@@ -13,6 +13,7 @@
 
 #include "caffe/blob.hpp"
 #include "caffe/common.hpp"
+#include "caffe/util/io_extra.hpp"
 #include "caffe/filler.hpp"
 #include "caffe/layer.hpp"
 #include "caffe/util/math_functions.hpp"
@@ -20,6 +21,22 @@
 #include "caffe/layers/self_gated_layer.hpp"
 
 namespace caffe {
+
+template <typename Dtype>
+void SummarizeArrayData(const Dtype* data, const int dim,
+                        const int row_start, const int row_span,
+                        const int col_start, const int col_span) {
+  for (int row = row_start; row < row_start + row_span; ++row) {
+    printf("%0.4f: ", caffe_cpu_asum(dim, data + row * dim) / Dtype(dim));
+    for (int col = col_start; col < col_start + col_span; ++col) {
+      printf("%0.4f", data[row * dim + col]);
+      if (col < col_start + col_span - 1)
+        printf(" ");
+      else
+        printf("\n");
+    }
+  }
+}
 
 template <typename Dtype>
 __global__ void self_gated_layer_kernel_row_sum(
@@ -78,6 +95,15 @@ void SelfGatedLayer<Dtype>::Forward_gpu(
   Dtype *top_data = top_.mutable_gpu_data();
   const int top_count = top_.count();
   caffe_gpu_mul(top_count, gate_data, bottom_data, top_data);
+
+  if (false) {
+    SummarizeArrayData(gate_.cpu_data(), gate_.width(),
+                       0, std::min(6, gate_.channels()),
+                       0, std::min(10, gate_.width()));
+    SummarizeArrayData(gate_.cpu_data(), gate_.width(),
+                       gate_.channels() - 6, std::min(6, gate_.channels()),
+                       0, std::min(10, gate_.width()));
+  }
 }
 
 template <typename Dtype>
