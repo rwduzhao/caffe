@@ -23,19 +23,88 @@
 namespace caffe {
 
 template <typename Dtype>
-void SummarizeArrayData(const Dtype* data, const int dim,
+void SummarizeArrayRows(const Dtype* data, const int dim,
                         const int row_start, const int row_span,
                         const int col_start, const int col_span) {
   for (int row = row_start; row < row_start + row_span; ++row) {
-    printf("%0.4f: ", caffe_cpu_asum(dim, data + row * dim) / Dtype(dim));
+    Dtype row_mean = 0.0;
+    Dtype row_min = Dtype(+1E10);
+    Dtype row_max = Dtype(-1E10);
     for (int col = col_start; col < col_start + col_span; ++col) {
-      printf("%0.4f", data[row * dim + col]);
+      const Dtype row_value = data[row * dim + col];
+      row_mean += row_value;
+      if (row_value < row_min)
+        row_min = row_value;
+      if (row_value > row_max)
+        row_max = row_value;
+    }
+    row_mean /= Dtype(col_span);
+    printf("(%g,%g,%g): ", row_min, row_mean, row_max);
+
+    for (int col = col_start; col < col_start + col_span; ++col) {
+      printf("%g", data[row * dim + col]);
       if (col < col_start + col_span - 1)
         printf(" ");
       else
         printf("\n");
     }
   }
+}
+
+template <typename Dtype>
+void SummarizeArrayRows(const Dtype* data, const Dtype* gates, const int dim,
+                        const int row_start, const int row_span,
+                        const int col_start, const int col_span) {
+  for (int row = row_start; row < row_start + row_span; ++row) {
+    printf("%g", caffe_cpu_asum(dim, data + row * dim) / Dtype(dim));
+    printf("(%g): ", caffe_cpu_asum(dim, gates + row * dim) / Dtype(dim));
+    for (int col = col_start; col < col_start + col_span; ++col) {
+      printf("%g(%g)", data[row * dim + col], gates[row * dim + col]);
+      if (col < col_start + col_span - 1)
+        printf(" ");
+      else
+        printf("\n");
+    }
+  }
+}
+
+template <typename Dtype>
+void SummarizeArrayCols(const Dtype* data, const int dim,
+                        const int row_start, const int row_span,
+                        const int col_start, const int col_span) {
+  for (int col = col_start; col < col_start + col_span; ++col) {
+    Dtype col_mean = 0.0;
+    Dtype col_min = Dtype(+1E10);
+    Dtype col_max = Dtype(-1E10);
+    for (int row = row_start; row < row_start + row_span; ++row) {
+      const Dtype col_value = data[row * dim + col];
+      col_mean += col_value;
+      if (col_value < col_min)
+        col_min = col_value;
+      if (col_value > col_max)
+        col_max = col_value;
+    }
+    col_mean /= Dtype(row_span);
+    printf("(%g,%g,%g) ", col_min, col_mean, col_max);
+  }
+  printf("\n");
+}
+
+template <typename Dtype>
+void PrintDataToFile(const char *filename, const Dtype* data, const int dim,
+                     const int row_start, const int row_span,
+                     const int col_start, const int col_span) {
+  FILE *fid = fopen(filename, "w");
+  for (int row = row_start; row < row_start + row_span; ++row) {
+    for (int col = col_start; col < col_start + col_span; ++col) {
+      fprintf(fid, "%g", data[row * dim + col]);
+      if (col < col_start + col_span - 1)
+        fprintf(fid, " ");
+      else
+        fprintf(fid, "\n");
+    }
+  }
+  fclose(fid);
 }
 
 template <typename Dtype>
@@ -97,12 +166,25 @@ void SelfGatedLayer<Dtype>::Forward_gpu(
   caffe_gpu_mul(top_count, gate_data, bottom_data, top_data);
 
   if (false) {
-    SummarizeArrayData(gate_.cpu_data(), gate_.width(),
-                       0, std::min(6, gate_.channels()),
-                       0, std::min(10, gate_.width()));
-    SummarizeArrayData(gate_.cpu_data(), gate_.width(),
-                       gate_.channels() - 6, std::min(6, gate_.channels()),
-                       0, std::min(10, gate_.width()));
+    LOG(INFO) << "data input data:";
+    PrintDataToFile("/home/rwduzhao/input_data", bottom[0]->cpu_data(), bottom[0]->channels(), 0, 1, 0, bottom[0]->channels());
+    LOG(INFO) << "gate input data:";
+    PrintDataToFile("/home/rwduzhao/gate_data", bottom[1]->cpu_data(), bottom[1]->channels(), 0, 1, 0, bottom[1]->channels());
+    LOG(INFO) << "top data:";
+    PrintDataToFile("/home/rwduzhao/top_data", top[0]->cpu_data(), top[0]->channels(), 0, 1, 0, top[0]->channels());
+
+    LOG(INFO) << "weight[0]:";
+    PrintDataToFile("/home/rwduzhao/weight_0", this->blobs_[0]->cpu_data(), this->blobs_[0]->channels(), 0, this->blobs_[0]->num(), 0, this->blobs_[0]->channels());
+    LOG(INFO) << "bias[0]:";
+    PrintDataToFile("/home/rwduzhao/bias_0", this->blobs_[1]->cpu_data(), this->blobs_[1]->num(), 0, 1, 0, this->blobs_[1]->num());
+    LOG(INFO) << "weight[1]:";
+    PrintDataToFile("/home/rwduzhao/weight_1", this->blobs_[2]->cpu_data(), this->blobs_[2]->channels(), 0, this->blobs_[2]->num(), 0, this->blobs_[2]->channels());
+    LOG(INFO) << "bias[1]:";
+    PrintDataToFile("/home/rwduzhao/bias_1", this->blobs_[3]->cpu_data(), this->blobs_[3]->num(), 0, 1, 0, this->blobs_[3]->num());
+
+    LOG(INFO) << "gate col info:";
+    SummarizeArrayCols(gate_.cpu_data(), gate_.width(), 0, gate_.count() / gate_.width(), 0, gate_.width());
+    exit(0);
   }
 }
 
