@@ -361,6 +361,7 @@ message LayerParameter {
   optional OneStepUnifiedForgetGateMemoryParameter one_step_unified_forget_gate_memory_param = 8266716;
   optional OneStepRecurrentMemoryParameter one_step_recurrent_memory_param = 8266717;
   optional SelfGatedParameter self_gated_param = 8266718;
+  optional LastSliceParameter last_slice_param = 8266719;
 }
 
 // Message that stores parameters used to apply transformation
@@ -972,9 +973,6 @@ message V1LayerParameter {
   optional TransformationParameter transform_param = 36;
   optional LossParameter loss_param = 42;
   optional V0LayerParameter layer = 1;
-  optional BinaryDataParameter binary_data_param = 1101;
-  optional OmniDataParameter omni_data_param = 1102;
-  optional StackedImageDataParameter stacked_image_data_param = 1103;
 }
 
 // DEPRECATED: V0LayerParameter is the old way of specifying layer parameters
@@ -1256,6 +1254,7 @@ message LSTMParameter {
   optional FillerParameter weight_filler = 3; // The filler for weight
   optional FillerParameter bias_filler = 4; // The filler for the bias
   optional uint32 batch_size = 5 [default = 1];
+  optional uint32 time_step = 6 [default = 0];
 }
 
 // Message that stores parameters used by OneStepShortTermMemoryParameter
@@ -1304,4 +1303,8 @@ message OneStepRecurrentMemoryParameter {
   optional FillerParameter weight_filler = 3; // The filler for weight
   optional FillerParameter bias_filler = 4; // The filler for the bias
   optional uint32 batch_size = 5 [default = 1];
+}
+
+message LastSliceParameter {
+  optional int32 num_division = 1;
 }

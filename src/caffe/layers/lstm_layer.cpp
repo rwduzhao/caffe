@@ -22,6 +22,11 @@ void LstmLayer<Dtype>::LayerSetUp(
   H_ = num_output; // number of hidden units
   T_ = bottom[0]->num() / N_; // length of sequence
 
+  if (this->layer_param_.lstm_param().time_step() > 0) {
+    T_ = this->layer_param_.lstm_param().time_step();
+    N_ = bottom[0]->num() / T_;
+  }
+
   // Check if we need to set up the weights
   if (this->blobs_.size() > 0) {
     LOG(INFO) << "Skipping parameter initialization";
@@ -55,17 +60,6 @@ void LstmLayer<Dtype>::LayerSetUp(
   }  // parameter initialization
   this->param_propagate_down_.resize(this->blobs_.size(), true);
 
-  vector<int> cell_shape;  // shape: N_ by H_
-  cell_shape.push_back(N_);
-  cell_shape.push_back(H_);
-  c_0_.Reshape(cell_shape);
-  h_0_.Reshape(cell_shape);
-  c_T_.Reshape(cell_shape);
-  h_T_.Reshape(cell_shape);
-  fdc_.Reshape(cell_shape);
-  ig_.Reshape(cell_shape);
-  clipped_.Reshape(cell_shape);
-
   vector<int> clip_mul_shape(1, H_);
   clip_multiplier_.Reshape(clip_mul_shape);
   caffe_set(clip_multiplier_.count(), Dtype(1), clip_multiplier_.mutable_cpu_data());
@@ -78,12 +72,27 @@ void LstmLayer<Dtype>::Reshape(
 
   // Figure out the dimensions
   T_ = bottom[0]->num() / N_;
+  if (this->layer_param_.lstm_param().time_step() > 0) {
+    T_ = this->layer_param_.lstm_param().time_step();
+    N_ = bottom[0]->num() / T_;
+  }
   CHECK_EQ(bottom[0]->num() % N_, 0) << "Input size should be multiple of batch size";
   CHECK_EQ(bottom[0]->count() / T_ / N_, I_) << "Input size incompatible with inner product parameters.";
   vector<int> original_top_shape;
   original_top_shape.push_back(T_ * N_);
   original_top_shape.push_back(H_);
   top[0]->Reshape(original_top_shape);
+
+  vector<int> cell_shape;  // shape: N_ by H_
+  cell_shape.push_back(N_);
+  cell_shape.push_back(H_);
+  c_0_.Reshape(cell_shape);
+  h_0_.Reshape(cell_shape);
+  c_T_.Reshape(cell_shape);
+  h_T_.Reshape(cell_shape);
+  fdc_.Reshape(cell_shape);
+  ig_.Reshape(cell_shape);
+  clipped_.Reshape(cell_shape);
 
   // Gate initialization
   vector<int> gate_shape;
