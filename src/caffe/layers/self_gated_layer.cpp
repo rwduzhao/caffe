@@ -217,6 +217,14 @@ void SelfGatedLayer<Dtype>::Reshape(
   top_.Reshape(blob_shape);
   top_.ShareData(*top[0]);
   top_.ShareDiff(*top[0]);
+
+  if (top.size() >= 2) {
+    blob_shape.clear();
+    blob_shape.push_back(time_step_ * batch_size_);
+    blob_shape.push_back(num_gate_ * output_dim_);
+    top[1]->Reshape(blob_shape);
+    top[1]->ShareData(gate_);
+  }
 }
 
 template <typename Dtype>
