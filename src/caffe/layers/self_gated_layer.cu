@@ -167,20 +167,31 @@ void SelfGatedLayer<Dtype>::Forward_gpu(
 
   if (false) {
     LOG(INFO) << "data input data:";
-    PrintDataToFile("/home/rwduzhao/input_data", bottom[0]->cpu_data(), bottom[0]->channels(), 0, 1, 0, bottom[0]->channels());
+    PrintDataToFile("input_data.txt", bottom[0]->cpu_data(), bottom[0]->channels(), 0, 1, 0, bottom[0]->channels());
     LOG(INFO) << "gate input data:";
-    PrintDataToFile("/home/rwduzhao/gate_data", bottom[1]->cpu_data(), bottom[1]->channels(), 0, 1, 0, bottom[1]->channels());
+    PrintDataToFile("gate_input_data.txt", bottom[1]->cpu_data(), bottom[1]->channels(), 0, 1, 0, bottom[1]->channels());
     LOG(INFO) << "top data:";
-    PrintDataToFile("/home/rwduzhao/top_data", top[0]->cpu_data(), top[0]->channels(), 0, 1, 0, top[0]->channels());
+    PrintDataToFile("top_data.txt", top[0]->cpu_data(), top[0]->channels(), 0, 1, 0, top[0]->channels());
+    LOG(INFO) << "gate data:";
+    PrintDataToFile("gate_data.txt", gate_.cpu_data(), gate_.width(), 0, gate_.count() / gate_.width(), 0, gate_.width());
 
-    LOG(INFO) << "weight[0]:";
-    PrintDataToFile("/home/rwduzhao/weight_0", this->blobs_[0]->cpu_data(), this->blobs_[0]->channels(), 0, this->blobs_[0]->num(), 0, this->blobs_[0]->channels());
-    LOG(INFO) << "bias[0]:";
-    PrintDataToFile("/home/rwduzhao/bias_0", this->blobs_[1]->cpu_data(), this->blobs_[1]->num(), 0, 1, 0, this->blobs_[1]->num());
-    LOG(INFO) << "weight[1]:";
-    PrintDataToFile("/home/rwduzhao/weight_1", this->blobs_[2]->cpu_data(), this->blobs_[2]->channels(), 0, this->blobs_[2]->num(), 0, this->blobs_[2]->channels());
-    LOG(INFO) << "bias[1]:";
-    PrintDataToFile("/home/rwduzhao/bias_1", this->blobs_[3]->cpu_data(), this->blobs_[3]->num(), 0, 1, 0, this->blobs_[3]->num());
+    for (int gate_net_layer_id = 0; gate_net_layer_id < num_gate_net_layer_; ++gate_net_layer_id) {
+      char weight_filename[100];
+      sprintf(weight_filename, "weight_%d.txt", gate_net_layer_id);
+      LOG(INFO) << weight_filename;
+      const int weight_blob_id = 2 * gate_net_layer_id + 0;
+      PrintDataToFile(weight_filename, this->blobs_[weight_blob_id]->cpu_data(),
+                      this->blobs_[weight_blob_id]->channels(),
+                      0, this->blobs_[weight_blob_id]->num(),
+                      0, this->blobs_[weight_blob_id]->channels());
+      char bias_filename[100];
+      sprintf(bias_filename, "bias_%d.txt", gate_net_layer_id);
+      LOG(INFO) << bias_filename;
+      const int bias_blob_id = 2 * gate_net_layer_id + 1;
+      PrintDataToFile(bias_filename, this->blobs_[bias_blob_id]->cpu_data(),
+                      this->blobs_[bias_blob_id]->num(),
+                      0, 1, 0, this->blobs_[bias_blob_id]->num());
+    }
 
     LOG(INFO) << "gate col info:";
     SummarizeArrayCols(gate_.cpu_data(), gate_.width(), 0, gate_.count() / gate_.width(), 0, gate_.width());
