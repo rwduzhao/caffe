@@ -505,6 +505,12 @@ Dtype Net<Dtype>::ForwardFromTo(int start, int end) {
   }
   for (int i = start; i <= end; ++i) {
     // LOG(ERROR) << "Forwarding " << layer_names_[i];
+    if (false) {  // rwduzhao
+      const string layer_name = layer_names_[i];
+      const int layer_name_index = layer_names_index_[layer_name];
+      const bool layer_need_backward = layer_need_backward_[i];
+      LOG(INFO) << "Forward: [" << layer_name_index << "]" << layer_name << "(" << layer_need_backward << ")";
+    }
     Dtype layer_loss = layers_[i]->Forward(bottom_vecs_[i], top_vecs_[i]);
     loss += layer_loss;
     if (debug_info_) { ForwardDebugInfo(i); }
@@ -568,6 +574,12 @@ void Net<Dtype>::BackwardFromTo(int start, int end) {
   CHECK_GE(end, 0);
   CHECK_LT(start, layers_.size());
   for (int i = start; i >= end; --i) {
+    if (false) {  // rwduzhao
+      const string layer_name = layer_names_[i];
+      const int layer_name_index = layer_names_index_[layer_name];
+      const bool layer_need_backward = layer_need_backward_[i];
+      LOG(INFO) << "Backward: [" << layer_name_index << "]" << layer_name << "(" << layer_need_backward << ")";
+    }
     if (layer_need_backward_[i]) {
       layers_[i]->Backward(
           top_vecs_[i], bottom_need_backward_[i], bottom_vecs_[i]);
