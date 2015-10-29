@@ -67,21 +67,6 @@ void caffe_div(const int N, const Dtype* a, const Dtype* b, Dtype* y);
 template <typename Dtype>
 void caffe_powx(const int n, const Dtype* a, const Dtype b, Dtype* y);
 
-template <typename Dtype>
-void caffe_sigmoid(const int N, const Dtype* x, Dtype* y);
-
-template <typename Dtype>
-void caffe_sigmoid_diff(const int N, const Dtype* y, const Dtype* y_diff, Dtype* x_diff);
-
-template <typename Dtype>
-void caffe_tanh(const int N, const Dtype* x, Dtype* y);
-
-template <typename Dtype>
-void caffe_tanh_diff(const int N, const Dtype* y, const Dtype* y_diff, Dtype* x_diff);
-
-template <typename Dtype>
-void caffe_bound(const int n, const Dtype* a, const Dtype min, const Dtype max, Dtype* y);
-
 unsigned int caffe_rng_rand();
 
 template <typename Dtype>
@@ -105,21 +90,6 @@ void caffe_exp(const int n, const Dtype* a, Dtype* y);
 
 template <typename Dtype>
 void caffe_abs(const int n, const Dtype* a, Dtype* y);
-
-template <typename Dtype>
-void caffe_gpu_sigmoid(const int N, const Dtype* x, Dtype* y);
-
-template <typename Dtype>
-void caffe_gpu_sigmoid_diff(const int N, const Dtype* y, const Dtype* y_diff, Dtype* x_diff);
-
-template <typename Dtype>
-void caffe_gpu_tanh(const int N, const Dtype* x, Dtype* y);
-
-template <typename Dtype>
-void caffe_gpu_tanh_diff(const int N, const Dtype* y, const Dtype* y_diff, Dtype* x_diff);
-
-template <typename Dtype>
-void caffe_gpu_bound(const int n, const Dtype* a, const Dtype min, const Dtype max, Dtype* y);
 
 template <typename Dtype>
 Dtype caffe_cpu_dot(const int n, const Dtype* x, const Dtype* y);

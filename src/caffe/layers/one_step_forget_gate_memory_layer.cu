@@ -16,6 +16,7 @@
 #include "caffe/filler.hpp"
 #include "caffe/layer.hpp"
 #include "caffe/util/math_functions.hpp"
+#include "caffe/util/math_functions_extra.hpp"
 #include "caffe/vision_layers.hpp"
 #include "caffe/layers/one_step_forget_gate_memory_layer.hpp"
 

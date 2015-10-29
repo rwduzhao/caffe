@@ -17,6 +17,7 @@
 #include "caffe/filler.hpp"
 #include "caffe/layer.hpp"
 #include "caffe/util/math_functions.hpp"
+#include "caffe/util/math_functions_extra.hpp"
 #include "caffe/vision_layers.hpp"
 #include "caffe/layers/self_gated_layer.hpp"
 
@@ -263,6 +264,13 @@ void SelfGatedLayer<Dtype>::Backward_gpu(
     Dtype *bottom_diff = bottom[bottom_id]->mutable_gpu_diff();
     const int bottom_count = bottom[bottom_id]->count();
     caffe_gpu_mul(bottom_count, gate_data, top_diff, bottom_diff);
+  }
+
+  // clear extra bottom diff
+  for (int bottom_id = 2; bottom_id < bottom.size(); ++bottom_id) {
+    Dtype *bottom_diff = bottom[bottom_id]->mutable_gpu_diff();
+    const int bottom_count = bottom[bottom_id]->count();
+    caffe_gpu_set(bottom_count, Dtype(0.), bottom_diff);
   }
 
   if (false) {

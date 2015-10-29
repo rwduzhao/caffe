@@ -5,6 +5,7 @@
 #include "caffe/filler.hpp"
 #include "caffe/layer.hpp"
 #include "caffe/util/math_functions.hpp"
+#include "caffe/util/math_functions_extra.hpp"
 #include "caffe/vision_layers.hpp"
 #include "caffe/layers/lstm_layer.hpp"
 
@@ -188,8 +189,8 @@ void LstmLayer<Dtype>::Forward_cpu(
 
     for (int n = 0; n < N_; ++n) {
       // Apply nonlinearity
-      caffe_sigmoid(3 * H_, pre_i_t, i_t);
-      caffe_tanh(H_, pre_g_t, g_t);
+      caffe_cpu_sigmoid(3 * H_, pre_i_t, i_t);
+      caffe_cpu_tanh(H_, pre_g_t, g_t);
       if (clip && mask_t[0] == 0)
         caffe_set(H_, (Dtype)0., f_t);
 
@@ -199,7 +200,7 @@ void LstmLayer<Dtype>::Forward_cpu(
       caffe_add(H_, c_t, ig, c_t);
 
       // Compute output
-      caffe_tanh(H_, c_t, tanh_c_t);
+      caffe_cpu_tanh(H_, c_t, tanh_c_t);
       caffe_mul(H_, o_t, tanh_c_t, h_t);
 
       h_t += H_;
@@ -269,7 +270,7 @@ void LstmLayer<Dtype>::Backward_cpu(
 
       // Cell state : o(t) * tanh'(c(t)) * h_diff(t) + f(t+1) * c_diff(t+1)
       caffe_mul(H_, o_t, dh_t, dc_t);
-      caffe_tanh_diff(H_, tanh_c_t, dc_t, dc_t);
+      caffe_cpu_tanh_diff(H_, tanh_c_t, dc_t, dc_t);
       if (t < T_ - 1) {
         caffe_mul(H_, f_t + gate_.offset(1), dc_t + cell_.offset(1), fdc);
         caffe_add(H_, fdc, dc_t, dc_t);
@@ -289,12 +290,12 @@ void LstmLayer<Dtype>::Backward_cpu(
       caffe_mul(H_, i_t, dc_t, dg_t);
 
       // Compute derivate before nonlinearity
-      caffe_sigmoid_diff(3*H_, i_t, di_t, pre_di_t);
-      caffe_tanh_diff(H_, g_t, dg_t, pre_dg_t);
+      caffe_cpu_sigmoid_diff(3*H_, i_t, di_t, pre_di_t);
+      caffe_cpu_tanh_diff(H_, g_t, dg_t, pre_dg_t);
 
       // Clip deriviates before nonlinearity
       if (clipping_threshold_ > 0.0f) {
-        caffe_bound(4*H_, pre_di_t, -clipping_threshold_, clipping_threshold_, pre_di_t);
+        caffe_cpu_bound(4*H_, pre_di_t, -clipping_threshold_, clipping_threshold_, pre_di_t);
       }
 
       dh_t += H_;
