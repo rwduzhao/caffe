@@ -362,6 +362,7 @@ message LayerParameter {
   optional OneStepRecurrentMemoryParameter one_step_recurrent_memory_param = 8266717;
   optional SelfGatedParameter self_gated_param = 8266718;
   optional LastSliceParameter last_slice_param = 8266719;
+  optional GateParameter gate_param = 8266720;
 }
 
 // Message that stores parameters used to apply transformation
@@ -1294,6 +1295,11 @@ message SelfGatedParameter {
   optional uint32 num_gate_net_layer = 6 [default = 1];
   optional uint32 gate_net_hidden_dim = 7;
   optional bool is_last_unit_gated = 8 [default = false];
+}
+
+// Message that stores parameters used by SelfGatedLayer
+message GateParameter {
+  optional float clipping_threshold = 1 [default = 0.0];
 }
 
 // Message that stores parameters used by OneStepRecurrentMemoryParameter
