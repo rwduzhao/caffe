@@ -30,8 +30,9 @@ __global__ void CalculateRegionScaleIndice(
     int roi_scale_id = num_scale - 1;  // pre-assign to largest scale
     for (int scale_id = 0; scale_id < num_scale; ++scale_id) {
       if (area_ratio >= scale_levels_data[scale_id] &&
-          area_ratio < scale_levels_data[scale_id + 1])
+          area_ratio < scale_levels_data[scale_id + 1]) {
         roi_scale_id = scale_id;
+      }
     }
     roi_scale_ids_data[roi_id] = roi_scale_id;
   }
@@ -171,6 +172,10 @@ void CrossRegionsPoolingLayer<Dtype>::Forward_gpu(
       const int top_count = top[1]->channels();
       caffe_copy(top_count, bottom_data, top_data);
     }
+  }
+
+  for (int top_id = 0; top_id < top.size(); ++top_id) {
+    caffe_gpu_set(top[top_id]->count(), Dtype(0.), top[top_id]->mutable_gpu_diff());
   }
 }
 
