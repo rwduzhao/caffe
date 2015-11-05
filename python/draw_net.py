@@ -18,7 +18,8 @@ def parse_args():
 
     parser.add_argument('input_net_proto_file',
                         help='Input network prototxt file')
-    parser.add_argument('output_image_file',
+    parser.add_argument('--output_image_file',
+                        default=None,
                         help='Output image file')
     parser.add_argument('--rankdir',
                         help=('One of TB (top-bottom, i.e., vertical), '
@@ -34,6 +35,8 @@ def parse_args():
 
 def main():
     args = parse_args()
+    if args.output_image_file is None:
+      args.output_image_file = args.input_net_proto_file + '.png'
     net = caffe_pb2.NetParameter()
     text_format.Merge(open(args.input_net_proto_file).read(), net)
     print('Drawing net to %s' % args.output_image_file)
