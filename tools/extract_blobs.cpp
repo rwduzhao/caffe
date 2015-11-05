@@ -19,13 +19,14 @@
 #include "caffe/caffe.hpp"
 
 DEFINE_int32(gpu, 0, "gpu device");
-DEFINE_string(blob, "", "blob names to be extracted");
-DEFINE_string(model, "", "trained model file");
 DEFINE_string(net, "", "net prototxt file");
+DEFINE_string(model, "", "trained model file");
+DEFINE_string(blob, "", "blob names to be extracted");
+DEFINE_string(outfile_prefix, "", "output file prefix");
 DEFINE_string(outfile, "", "output file");
-DEFINE_string(prefix, "", "output prefix");
-DEFINE_uint64(disp, 0, "display interval");
 DEFINE_uint64(num, 0, "number of instances");
+DEFINE_uint64(disp, 0, "display interval");
+DEFINE_int32(is_binary_output, 0, "output binary file");
 
 using namespace caffe;  // NOLINT(build/namespaces)
 
@@ -67,11 +68,10 @@ int main(int argc, char** argv) {
   }
 
   const unsigned long int num_instance = FLAGS_num;
-  const std::string outfile_prefix = FLAGS_prefix;
   std::ofstream * outfiles = new std::ofstream[outfile_names.size()];
   for (int file_id = 0; file_id < outfile_names.size(); ++file_id) {
     const unsigned int blob_feature_size = net.blob_by_name(blob_names[file_id])->offset(1) * sizeof(float);
-    const string outfile_name = outfile_prefix + outfile_names[file_id];
+    const string outfile_name = FLAGS_outfile_prefix + outfile_names[file_id];
     LOG(INFO) << "extracting blob [" << blob_names[file_id] << "] into " << outfile_name;
     LOG(INFO) << "  this blob has a feature size of " << net.blob_by_name(blob_names[file_id])->offset(1) << " dimesion";
     LOG(INFO) << "  estimated output file size: "
@@ -92,9 +92,17 @@ int main(int argc, char** argv) {
     for (long unsigned int item_id = 0; item_id < batch_size; ++item_id) {
       for (int blob_id = 0; blob_id < blob_names.size(); ++blob_id) {
         const shared_ptr<Blob<float> > feature_blob = net.blob_by_name(blob_names[blob_id]);
-        float * feature_blob_data = feature_blob->mutable_cpu_data() + feature_blob->offset(item_id);
-        const unsigned int blob_feature_size = feature_blob->offset(1) * sizeof(float);
-        outfiles[blob_id].write(reinterpret_cast<char *>(feature_blob_data), blob_feature_size);
+        float *feature_blob_data = feature_blob->mutable_cpu_data() + feature_blob->offset(item_id);
+
+        if (FLAGS_is_binary_output == 1) {
+          const unsigned int blob_feature_size = feature_blob->offset(1) * sizeof(float);
+          outfiles[blob_id].write(reinterpret_cast<char *>(feature_blob_data), blob_feature_size);
+        } else {
+          const unsigned int blob_feature_size = feature_blob->offset(1);
+          for (int c = 0; c < blob_feature_size - 1; ++c)
+            outfiles[blob_id] << feature_blob_data[c] << " ";
+          outfiles[blob_id] << feature_blob_data[blob_feature_size - 1] << "\n";
+        }
       }
     }
     instance_count += batch_size;
@@ -106,7 +114,7 @@ int main(int argc, char** argv) {
 
   for (int file_id = 0; file_id < outfile_names.size(); ++file_id) {
     outfiles[file_id].close();
-    const string outfile_name = outfile_prefix + outfile_names[file_id];
+    const string outfile_name = FLAGS_outfile_prefix + outfile_names[file_id];
     LOG(INFO) << "blob [" << blob_names[file_id] << "] extracted into " << outfile_name;
   }
   delete[] outfiles;
