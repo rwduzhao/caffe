@@ -177,6 +177,24 @@ void CrossRegionsPoolingLayer<Dtype>::Forward_gpu(
   for (int top_id = 0; top_id < top.size(); ++top_id) {
     caffe_gpu_set(top[top_id]->count(), Dtype(0.), top[top_id]->mutable_gpu_diff());
   }
+
+  if (false) {
+    const int *_roi_scale_ids_data = roi_scale_ids_.cpu_data();
+    const Dtype *_rois_data = bottom[1]->cpu_data();
+    const Dtype *_image_areas_data = image_areas_.cpu_data();
+    for (int roi_id = 0; roi_id < 10; ++roi_id) {
+      const int image_id = _rois_data[roi_id * 5 + 0];
+      const Dtype x0 = _rois_data[roi_id * 5 + 1];
+      const Dtype y0 = _rois_data[roi_id * 5 + 2];
+      const Dtype x1 = _rois_data[roi_id * 5 + 3];
+      const Dtype y1 = _rois_data[roi_id * 5 + 4];
+      const Dtype box_area = (x1 - x0 + 1) * (y1 - y0 + 1);
+      const Dtype image_area = _image_areas_data[image_id];
+      const int scale_id = _roi_scale_ids_data[roi_id];
+      printf("%d: %d %f %f %d\n", roi_id, image_id, box_area, image_area, scale_id);
+    }
+    printf("\n");
+  }
 }
 
 template <typename Dtype>

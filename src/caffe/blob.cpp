@@ -461,6 +461,16 @@ void Blob<Dtype>::FromProto(const BlobProto& proto, bool reshape) {
     }
     Reshape(shape);
   } else {
+    if (!ShapeEquals(proto)) {
+      LOG(ERROR) << "From shape:";
+      for (int i = 0; i < proto.shape().dim_size(); ++i) {
+        LOG(ERROR) << proto.shape().dim(i);
+      }
+      LOG(ERROR) << "To shape:";
+      for (int i = 0; i < shape_.size(); ++i) {
+        LOG(ERROR) << shape_[i];
+      }
+    }
     CHECK(ShapeEquals(proto)) << "shape mismatch (reshape not set)";
   }
   // copy data
