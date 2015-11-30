@@ -363,6 +363,7 @@ message LayerParameter {
   optional SelfGatedParameter self_gated_param = 8266718;
   optional LastSliceParameter last_slice_param = 8266719;
   optional GateParameter gate_param = 8266720;
+  optional WeightedSplitParameter weighted_split_param = 8266721;
 }
 
 // Message that stores parameters used to apply transformation
@@ -1297,9 +1298,14 @@ message SelfGatedParameter {
   optional bool is_last_unit_gated = 8 [default = false];
 }
 
-// Message that stores parameters used by SelfGatedLayer
+// Message that stores parameters used by GateLayer
 message GateParameter {
   optional float clipping_threshold = 1 [default = 0.0];
+}
+
+// Message that stores parameters used by WeightedSplitLayer
+message WeightedSplitParameter {
+  repeated float diff_weight = 1;
 }
 
 // Message that stores parameters used by OneStepRecurrentMemoryParameter
