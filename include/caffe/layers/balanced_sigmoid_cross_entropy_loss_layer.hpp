@@ -13,14 +13,15 @@
 #ifndef CAFFE_LAYERS_BALANCED_SIGMOID_CROSS_ENTROPY_LOSS_LAYER_HPP_
 #define CAFFE_LAYERS_BALANCED_SIGMOID_CROSS_ENTROPY_LOSS_LAYER_HPP_
 
-#include <string>
-#include <utility>
 #include <vector>
-#include "caffe/proto/caffe.pb.h"
+
 #include "caffe/blob.hpp"
-#include "caffe/common.hpp"
 #include "caffe/layer.hpp"
-#include "caffe/loss_layers.hpp"
+#include "caffe/proto/caffe.pb.h"
+
+#include "caffe/layers/loss_layer.hpp"
+#include "caffe/layers/sigmoid_layer.hpp"
+#include "caffe/layers/sigmoid_cross_entropy_loss_layer.hpp"
 
 namespace caffe {
 
@@ -36,7 +37,7 @@ public:
   virtual void Reshape(const vector<Blob<Dtype>*>& bottom,
                        const vector<Blob<Dtype>*>& top);
 
-  virtual inline const char* type() const { return "MultilabelSigmoidCrossEntropyLoss"; }
+  virtual inline const char* type() const { return "BalancedSigmoidCrossEntropyLoss"; }
 
 protected:
   virtual void Forward_cpu(const vector<Blob<Dtype>*>& bottom,

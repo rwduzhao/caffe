@@ -12,18 +12,11 @@
 #ifndef __CAFFE_LAYERS_SELF_GATED_LAYER_HPP__
 #define __CAFFE_LAYERS_SELF_GATED_LAYER_HPP__
 
-#include <string>
-#include <utility>
 #include <vector>
 
 #include "caffe/blob.hpp"
-#include "caffe/common.hpp"
-#include "caffe/data_layers.hpp"
 #include "caffe/layer.hpp"
-#include "caffe/loss_layers.hpp"
-#include "caffe/neuron_layers.hpp"
 #include "caffe/proto/caffe.pb.h"
-#include "caffe/common_layers.hpp"
 
 namespace caffe {
 

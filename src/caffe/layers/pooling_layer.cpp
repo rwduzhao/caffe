@@ -2,11 +2,8 @@
 #include <cfloat>
 #include <vector>
 
-#include "caffe/common.hpp"
-#include "caffe/layer.hpp"
-#include "caffe/syncedmem.hpp"
+#include "caffe/layers/pooling_layer.hpp"
 #include "caffe/util/math_functions.hpp"
-#include "caffe/vision_layers.hpp"
 
 namespace caffe {
 
@@ -17,12 +14,7 @@ template <typename Dtype>
 void PoolingLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
       const vector<Blob<Dtype>*>& top) {
   PoolingParameter pool_param = this->layer_param_.pooling_param();
-  if (this->layer_param_.pooling_param().pool() == PoolingParameter_PoolMethod_KMAX) {
-    if (this->layer_param_.pooling_param().pool_direction() == PoolingParameter_PoolDirection_HORIZONTAL)
-      CHECK(pool_param.has_kernel_h()) << "Kernel height is required for horizontal dynamic k pooling.";
-    else if (this->layer_param_.pooling_param().pool_direction() == PoolingParameter_PoolDirection_VERTICAL)
-      CHECK(pool_param.has_kernel_w()) << "Kernel width is required for vertical dynamic k pooling.";
-  } else if (pool_param.global_pooling()) {
+  if (pool_param.global_pooling()) {
     CHECK(!(pool_param.has_kernel_size() ||
       pool_param.has_kernel_h() || pool_param.has_kernel_w()))
       << "With Global_pooling: true Filter size cannot specified";
@@ -43,15 +35,7 @@ void PoolingLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
       || (!pool_param.has_stride_h() && !pool_param.has_stride_w()))
       << "Stride is stride OR stride_h and stride_w are required.";
   global_pooling_ = pool_param.global_pooling();
-  if (this->layer_param_.pooling_param().pool() == PoolingParameter_PoolMethod_KMAX) {
-    if (this->layer_param_.pooling_param().pool_direction() == PoolingParameter_PoolDirection_HORIZONTAL) {
-      kernel_h_ = pool_param.kernel_h();
-      kernel_w_ = bottom[0]->width();
-    } else if (this->layer_param_.pooling_param().pool_direction() == PoolingParameter_PoolDirection_VERTICAL) {
-      kernel_h_ = bottom[0]->height();
-      kernel_w_ = pool_param.kernel_w();
-    }
-  } else if (global_pooling_) {
+  if (global_pooling_) {
     kernel_h_ = bottom[0]->height();
     kernel_w_ = bottom[0]->width();
   } else {
@@ -84,20 +68,10 @@ void PoolingLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
     CHECK(this->layer_param_.pooling_param().pool()
         == PoolingParameter_PoolMethod_AVE
         || this->layer_param_.pooling_param().pool()
-        == PoolingParameter_PoolMethod_MAX
-        || this->layer_param_.pooling_param().pool()
-        == PoolingParameter_PoolMethod_KMAX)
+        == PoolingParameter_PoolMethod_MAX)
         << "Padding implemented only for average and max pooling.";
     CHECK_LT(pad_h_, kernel_h_);
     CHECK_LT(pad_w_, kernel_w_);
-  }
-  if (this->layer_param_.pooling_param().pool() == PoolingParameter_PoolMethod_KMAX) {
-    if (this->layer_param_.pooling_param().pool_direction() == PoolingParameter_PoolDirection_HORIZONTAL)
-      CHECK_GE(kernel_w_, this->layer_param_.pooling_param().top_k()) <<
-        "Top k must be greater than the kernel width in horizontal dynamic k pooling.";
-    else if (this->layer_param_.pooling_param().pool_direction() == PoolingParameter_PoolDirection_VERTICAL)
-      CHECK_GE(kernel_h_, this->layer_param_.pooling_param().top_k()) <<
-        "Top k must be greater than the kernel height in vertical dynamic k pooling.";
   }
 }
 
@@ -129,16 +103,6 @@ void PoolingLayer<Dtype>::Reshape(const vector<Blob<Dtype>*>& bottom,
     CHECK_LT((pooled_height_ - 1) * stride_h_, height_ + pad_h_);
     CHECK_LT((pooled_width_ - 1) * stride_w_, width_ + pad_w_);
   }
-
-  if (this->layer_param_.pooling_param().pool() == PoolingParameter_PoolMethod_KMAX) {
-    if (this->layer_param_.pooling_param().pool_direction() == PoolingParameter_PoolDirection_HORIZONTAL)
-      pooled_width_ = pooled_width_*this->layer_param_.pooling_param().top_k();
-    else if (this->layer_param_.pooling_param().pool_direction() == PoolingParameter_PoolDirection_VERTICAL)
-      pooled_height_ = pooled_height_*this->layer_param_.pooling_param().top_k();
-    else
-      LOG(FATAL) << "Unknown pooling direction.";
-  }
-
   top[0]->Reshape(bottom[0]->num(), channels_, pooled_height_,
       pooled_width_);
   if (top.size() > 1) {
@@ -155,12 +119,6 @@ void PoolingLayer<Dtype>::Reshape(const vector<Blob<Dtype>*>& bottom,
       PoolingParameter_PoolMethod_STOCHASTIC) {
     rand_idx_.Reshape(bottom[0]->num(), channels_, pooled_height_,
       pooled_width_);
-  }
-  // If kmax pooling, we will initialize the vector index part.
-  if (this->layer_param_.pooling_param().pool() ==
-      PoolingParameter_PoolMethod_KMAX && top.size() == 1) {
-    max_idx_.Reshape(bottom[0]->num(), channels_, pooled_height_,
-        pooled_width_);
   }
 }
 

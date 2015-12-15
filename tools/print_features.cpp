@@ -12,7 +12,6 @@
 #include "caffe/net.hpp"
 #include "caffe/proto/caffe.pb.h"
 #include "caffe/util/io.hpp"
-#include "caffe/vision_layers.hpp"
 
 using namespace caffe;  // NOLINT(build/namespaces)
 
