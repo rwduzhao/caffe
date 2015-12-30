@@ -60,6 +60,7 @@ void BalancedSigmoidCrossEntropyLossLayer<Dtype>::Forward_cpu(
       neg_count_ += Dtype(1.);
   }
   top[0]->mutable_cpu_data()[0] = loss / num;
+  top[0]->mutable_cpu_data()[0] = loss / count;
 }
 
 template <typename Dtype>
