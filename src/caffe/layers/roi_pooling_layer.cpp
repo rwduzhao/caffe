@@ -3,6 +3,7 @@
 // Copyright (c) 2015 Microsoft
 // Licensed under The MIT License [see fast-rcnn/LICENSE for details]
 // Written by Ross Girshick
+// Modified by Rui-Wei Zhao
 // ------------------------------------------------------------------
 
 #include <cfloat>
@@ -20,15 +21,34 @@ using std::ceil;
 namespace caffe {
 
 template <typename Dtype>
-void ROIPoolingLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
-      const vector<Blob<Dtype>*>& top) {
+void ROIPoolingLayer<Dtype>::LayerSetUp(
+  const vector<Blob<Dtype>*>& bottom,
+  const vector<Blob<Dtype>*>& top) {
+
+  // layer parameters
   ROIPoolingParameter roi_pool_param = this->layer_param_.roi_pooling_param();
-  CHECK_GT(roi_pool_param.pooled_h(), 0) << "pooled_h must be > 0";
-  CHECK_GT(roi_pool_param.pooled_w(), 0) << "pooled_w must be > 0";
+
+  // pooled sizes
   pooled_height_ = roi_pool_param.pooled_h();
+  CHECK_GT(pooled_height_, 0) << "pooled height must be greater 0";
   pooled_width_ = roi_pool_param.pooled_w();
+  CHECK_GT(pooled_width_, 0) << "pooled width must be greater 0";
+
+  // spatial scale
   spatial_scale_ = roi_pool_param.spatial_scale();
-  LOG(INFO) << "spatial scale: " << spatial_scale_;
+  CHECK_GT(spatial_scale_, 0) << "spatial scale must be greater 0";
+
+  // position map sizes
+  position_map_height_ = roi_pool_param.position_map_height();
+  CHECK_GE(position_map_height_, 0) << "position map height must be greater or equal to 0";
+  position_map_width_ = roi_pool_param.position_map_width();
+  CHECK_GE(position_map_width_, 0) << "position map width must be greater or equal to 0";
+
+  // shape map sizes
+  shape_map_height_ = roi_pool_param.shape_map_height();
+  CHECK_GE(shape_map_height_, 0) << "shape map height must be greater or equal to 0";
+  shape_map_width_ = roi_pool_param.shape_map_width();
+  CHECK_GE(shape_map_width_, 0) << "shape map width must be greater or equal to 0";
 }
 
 template <typename Dtype>
@@ -36,22 +56,21 @@ void ROIPoolingLayer<Dtype>::Reshape(
   const vector<Blob<Dtype>*>& bottom,
   const vector<Blob<Dtype>*>& top) {
 
+  // bottom feature map sizes
   channels_ = bottom[0]->channels();
   height_ = bottom[0]->height();
   width_ = bottom[0]->width();
-  top[0]->Reshape(bottom[1]->num(), channels_, pooled_height_, pooled_width_);
-  max_idx_.Reshape(bottom[1]->num(), channels_, pooled_height_, pooled_width_);
 
-  ROIPoolingParameter roi_pooling_param = this->layer_param_.roi_pooling_param();
-  switch (roi_pooling_param.pool()) {
-    case ROIPoolingParameter_PoolMethod_MAX:
-      break;
-    case ROIPoolingParameter_PoolMethod_AVE:
-      break;
-    case ROIPoolingParameter_PoolMethod_INT:
-      break;
-    default:
-      break;
+  pooled_channels_ = channels_;
+  top[0]->Reshape(bottom[1]->num(), pooled_channels_, pooled_height_, pooled_width_);
+  max_idx_.Reshape(bottom[1]->num(), pooled_channels_, pooled_height_, pooled_width_);
+
+  const int num_top = top.size();
+  if (num_top > 1) {
+    top[1]->Reshape(bottom[1]->num(), 1, position_map_height_, position_map_width_);
+  }
+  if (num_top > 2) {
+    top[2]->Reshape(bottom[1]->num(), 1, shape_map_height_, shape_map_width_);
   }
 }
 

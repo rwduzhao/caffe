@@ -1432,6 +1432,10 @@ message ROIPoolingParameter {
     INT = 2;  // interpolated
   }
   optional PoolMethod pool = 101 [default = MAX];
+  optional uint32 position_map_height = 102 [default = 10];
+  optional uint32 position_map_width = 103 [default = 10];
+  optional uint32 shape_map_height = 104 [default = 10];
+  optional uint32 shape_map_width = 105 [default = 10];
 }
 
 // Message that stores parameters used by CrossRegionsPoolingLayer

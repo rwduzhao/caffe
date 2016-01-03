@@ -16,6 +16,65 @@ using std::min;
 namespace caffe {
 
 template <typename Dtype>
+__global__ void MakeRoiPositionMap(const int nthreads,
+  const int map_height, const int map_width,
+  const int bottom_height, const int bottom_width,
+  const Dtype* bottom_rois, Dtype* map_data) {
+  // map size scales
+  const Dtype map_height_scale = static_cast<Dtype>(map_height) / static_cast<Dtype>(bottom_height);
+  const Dtype map_width_scale = static_cast<Dtype>(map_width) / static_cast<Dtype>(bottom_width);
+
+  CUDA_KERNEL_LOOP(index, nthreads) {
+    bottom_rois += index * 5;
+    const int batch_ind = bottom_rois[0];
+    const int map_start_w = max(0, int(round(bottom_rois[1] * map_width_scale)));
+    const int map_start_h = max(0, int(round(bottom_rois[2] * map_height_scale)));
+    const int map_end_w = min(int(round(bottom_rois[3] * map_width_scale)), map_width);
+    const int map_end_h = min(int(round(bottom_rois[4] * map_height_scale)), map_height);
+
+    map_data += batch_ind * map_height * map_width;
+    for (int h = map_start_h; h <= map_end_h; ++h) {
+      for (int w = map_start_w; w <= map_end_w; ++w) {
+        const int map_index = h * map_width + w;
+        map_data[map_index] = Dtype(1.);
+      }
+    }
+  }
+}
+
+template <typename Dtype>
+__global__ void MakeRoiShapeMap(const int nthreads,
+  const int map_height, const int map_width,
+  const Dtype* bottom_rois, Dtype* map_data) {
+
+  CUDA_KERNEL_LOOP(index, nthreads) {
+    bottom_rois += index * 5;
+    const int batch_ind = static_cast<int>(bottom_rois[0]);
+    const int roi_height = static_cast<int>(bottom_rois[4] - bottom_rois[2] + 1);
+    const int roi_width = static_cast<int>(bottom_rois[3] - bottom_rois[1] + 1);
+
+    const int max_roi_side = max(roi_height, roi_width);
+    const Dtype height_ratio = static_cast<Dtype>(roi_height) / static_cast<Dtype>(max_roi_side);
+    const Dtype width_ratio = static_cast<Dtype>(roi_width) / static_cast<Dtype>(max_roi_side);
+    const int mapped_height = max(1, static_cast<int>(height_ratio * static_cast<Dtype>(map_height)));
+    const int mapped_width = max(1, static_cast<int>(width_ratio * static_cast<Dtype>(map_width)));
+
+    const int mapped_h_start = (map_height - mapped_height) / 2;
+    const int mapped_h_end = mapped_h_start + mapped_height - 1;
+    const int mapped_w_start = (map_width - mapped_width) / 2;
+    const int mapped_w_end = mapped_w_start + mapped_width - 1;
+
+    map_data += batch_ind * map_height * map_width;
+    for (int h = mapped_h_start; h <= mapped_h_end; ++h) {
+      for (int w = mapped_w_start; w <= mapped_w_end; ++w) {
+        const int map_index = h * map_width + w;
+        map_data[map_index] = Dtype(1.);
+      }
+    }
+  }
+}
+
+template <typename Dtype>
 __global__ void ROIPoolForward(const int nthreads, const Dtype* bottom_data,
     const Dtype spatial_scale, const int channels, const int height,
     const int width, const int pooled_height, const int pooled_width,
@@ -173,6 +232,29 @@ void ROIPoolingLayer<Dtype>::Forward_gpu(
       break;
     default:
       break;
+  }
+
+  const int num_top = top.size();
+  if (num_top > 1) {
+    const int bottom_height = bottom[0]->height();
+    const int bottom_width = bottom[0]->width();
+    const int num_roi = bottom[1]->num();
+    Dtype* position_map_data = top[1]->mutable_gpu_data();
+    caffe_gpu_set(top[1]->count(), Dtype(0.), position_map_data);
+    // NOLINT_NEXT_LINE(whitespace/operators)
+    MakeRoiPositionMap<Dtype><<<CAFFE_GET_BLOCKS(num_roi), CAFFE_CUDA_NUM_THREADS>>>(
+      num_roi, position_map_height_, position_map_width_, bottom_height, bottom_width,
+      bottom_rois, position_map_data);
+    CUDA_POST_KERNEL_CHECK;
+  }
+  if (num_top > 2) {
+    const int num_roi = bottom[1]->num();
+    Dtype* shape_map_data = top[2]->mutable_gpu_data();
+    caffe_gpu_set(top[2]->count(), Dtype(0.), shape_map_data);
+    // NOLINT_NEXT_LINE(whitespace/operators)
+    MakeRoiShapeMap<Dtype><<<CAFFE_GET_BLOCKS(num_roi), CAFFE_CUDA_NUM_THREADS>>>(
+      num_roi, shape_map_height_, shape_map_width_, bottom_rois, shape_map_data);
+    CUDA_POST_KERNEL_CHECK;
   }
 }
 
