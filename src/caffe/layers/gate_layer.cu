@@ -33,9 +33,6 @@ void GateLayer<Dtype>::Forward_gpu(
     Dtype *gate_data = gate_.mutable_gpu_data();
     caffe_gpu_gemm(CblasNoTrans, CblasTrans, batch_size_, output_dim_, 1,
                    Dtype(1.), gate_input_data, gate_dim_multiplier_data, Dtype(0.), gate_data);
-
-    const Dtype avg_gate_value = caffe_cpu_asum(bottom[1]->count(), bottom[1]->cpu_data()) / Dtype(bottom[1]->count());
-    LOG(INFO) << "unit gate avg value: " << avg_gate_value;
   }
 
   // input -> output
@@ -63,10 +60,6 @@ void GateLayer<Dtype>::Backward_gpu(
     Dtype *gate_input_diff = bottom[1]->mutable_gpu_diff();
     caffe_gpu_row_sum(batch_size_, output_dim_, gate_diff, gate_input_diff);
     // caffe_gpu_scale(bottom[1]->count(), Dtype(1.) / Dtype(output_dim_), bottom[1]->gpu_diff(), bottom[1]->mutable_gpu_diff());
-
-    const Dtype avg_gate_diff = caffe_cpu_asum(bottom[1]->count(), bottom[1]->cpu_diff()) / Dtype(bottom[1]->count());
-    const Dtype std_gate_diff = caffe_cpu_std(bottom[1]->count(), bottom[1]->cpu_diff());
-    LOG(INFO) << "unit gate avg diff: " << avg_gate_diff << "(" << std_gate_diff << ")";
   }
 
   // top_diff -> bottom_diff
