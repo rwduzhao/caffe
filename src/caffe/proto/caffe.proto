@@ -1444,6 +1444,7 @@ message CrossRegionsPoolingParameter {
     MAX = 0;
     AVE = 1;
     STOCHASTIC = 2;
+    TOP = 3;
   }
   optional PoolMethod pool = 1 [default = MAX]; // The pooling method
 

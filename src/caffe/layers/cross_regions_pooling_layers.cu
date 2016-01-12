@@ -39,6 +39,22 @@ __global__ void CalculateRegionScaleIndice(
 }
 
 template <typename Dtype>
+__global__ void MakeTopRoiIds(
+  const int num_image, const int num_rois, const Dtype* bottom_rois,
+  int *top_roi_ids_data) {
+
+  CUDA_KERNEL_LOOP(image_id, num_image) {
+    for (int roi_id = 0; roi_id < num_rois; ++roi_id) {
+      const int roi_offset = roi_id * 5;
+      if (bottom_rois[roi_offset + 0] == image_id) {
+        top_roi_ids_data[image_id] = roi_id;
+        break;
+      }
+    }
+  }
+}
+
+template <typename Dtype>
 __global__ void MultiScaledCrossRegionsMaximumPoolForward(
   const int top_count, const int top_channels,
   const int bottom_channels, const Dtype* bottom_data,
@@ -156,6 +172,30 @@ void CrossRegionsPoolingLayer<Dtype>::Forward_gpu(
         top_data, pool_counts);
       CUDA_POST_KERNEL_CHECK;
       break;
+    case CrossRegionsPoolingParameter_PoolMethod_STOCHASTIC:
+      // NOLINT_NEXT_LINE(whitespace/operators)
+      MultiScaledCrossRegionsMaximumPoolForward<Dtype><<<CAFFE_GET_BLOCKS(top_count), CAFFE_CUDA_NUM_THREADS>>>(
+        top_count, top_channels_,
+        bottom_channels_, bottom_data,
+        num_rois, bottom_rois, roi_scale_ids_data,
+        top_data, argmax_data);
+      CUDA_POST_KERNEL_CHECK;
+      break;
+    case CrossRegionsPoolingParameter_PoolMethod_TOP:
+      // NOLINT_NEXT_LINE(whitespace/operators)
+      MakeTopRoiIds<Dtype><<<CAFFE_GET_BLOCKS(num_image_), CAFFE_CUDA_NUM_THREADS>>>(
+        num_image_, num_rois, bottom_rois, top_roi_ids_.mutable_gpu_data());
+      CUDA_POST_KERNEL_CHECK;
+      for (int image_id = 0; image_id < num_image_; ++image_id) {
+        const int *top_roi_ids_data = top_roi_ids_.cpu_data();
+        const int top_roi_id = top_roi_ids_data[image_id];
+        const int bottom_offset = top_roi_id * bottom_channels_;
+        const int *roi_scale_ids_data = roi_scale_ids_.cpu_data();
+        const int roi_scale_id = roi_scale_ids_data[top_roi_id];
+        const int top_offset = image_id * top_channels_ + roi_scale_id * bottom_channels_;
+        caffe_copy(bottom_channels_, bottom_data + bottom_offset, top_data + top_offset);
+      }
+      break;
     default:
       break;
   }
@@ -163,8 +203,8 @@ void CrossRegionsPoolingLayer<Dtype>::Forward_gpu(
   // set top[1]
   if (top.size() >= 2) {
     const Dtype *bottom_rois = bottom[1]->cpu_data();
-    const int num_roi = top[1]->num();
-    for (int roi_id = 0; roi_id < num_roi; ++roi_id) {
+    const int num_rois = top[1]->num();
+    for (int roi_id = 0; roi_id < num_rois; ++roi_id) {
       const int roi_offset = roi_id * 5;
       const int roi_image_id = bottom_rois[roi_offset + 0];
       Dtype *bottom_data = top[0]->mutable_gpu_data() + top[0]->offset(roi_image_id);
@@ -253,6 +293,25 @@ void CrossRegionsPoolingLayer<Dtype>::Backward_gpu(
         bottom_rois, roi_scale_ids_data, pool_counts,
         top_diff, bottom_diff);
       CUDA_POST_KERNEL_CHECK;
+      break;
+    case CrossRegionsPoolingParameter_PoolMethod_STOCHASTIC:
+      // NOLINT_NEXT_LINE(whitespace/operators)
+      MultiScaledCrossRegionsMaximumPoolBackward<Dtype><<<CAFFE_GET_BLOCKS(bottom_count), CAFFE_CUDA_NUM_THREADS>>>(
+        bottom_count, bottom_channels_, top_channels_,
+        bottom_rois, roi_scale_ids_data, argmax_data,
+        top_diff, bottom_diff);
+      CUDA_POST_KERNEL_CHECK;
+      break;
+    case CrossRegionsPoolingParameter_PoolMethod_TOP:
+      for (int image_id = 0; image_id < num_image_; ++image_id) {
+        const int *top_roi_ids_data = top_roi_ids_.cpu_data();
+        const int top_roi_id = top_roi_ids_data[image_id];
+        const int bottom_offset = top_roi_id * bottom_channels_;
+        const int *roi_scale_ids_data = roi_scale_ids_.cpu_data();
+        const int roi_scale_id = roi_scale_ids_data[top_roi_id];
+        const int top_offset = image_id * top_channels_ + roi_scale_id * bottom_channels_;
+        caffe_copy(bottom_channels_, top_diff + top_offset, bottom_diff + bottom_offset);
+      }
       break;
     default:
       break;

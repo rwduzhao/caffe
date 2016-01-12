@@ -41,6 +41,7 @@ public:
   Blob<Dtype> image_areas_;
   Blob<int> max_idx_;
   Blob<int> roi_scale_ids_;
+  Blob<int> top_roi_ids_;
 };
 
 }

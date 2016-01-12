@@ -37,20 +37,33 @@ void CrossRegionsPoolingLayer<Dtype>::Reshape(
 
   CHECK_EQ(bottom_channels_, bottom[0]->channels());
 
-  const int num_roi = bottom[0]->num();
-  CHECK_EQ(num_roi, bottom[1]->num());
-  roi_scale_ids_.Reshape(num_roi, 1, 1, 1);
+  const int num_rois = bottom[0]->num();
+  CHECK_EQ(num_rois, bottom[1]->num());
+  roi_scale_ids_.Reshape(num_rois, 1, 1, 1);
 
   num_image_ = bottom[2]->num();
-  top[0]->Reshape(num_image_, top_channels_, 1, 1);
-  max_idx_.Reshape(num_image_, top_channels_, 1, 1);
-
   image_areas_.Reshape(num_image_, 1, 1, 1);
   image_areas_.ShareData(*bottom[2]);
 
+  if (pool_method_ == CrossRegionsPoolingParameter_PoolMethod_STOCHASTIC) {
+    Dtype *bottom_rois = bottom[1]->mutable_cpu_data();
+    for (int roi_id = 0; roi_id < num_rois; ++roi_id) {
+      const int roi_offset = roi_id * 5;
+      bottom_rois[roi_offset + 0] = Dtype(roi_id);
+    }
+    top[0]->Reshape(num_rois, top_channels_, 1, 1);
+    max_idx_.Reshape(num_rois, top_channels_, 1, 1);
+  } else {
+    top[0]->Reshape(num_image_, top_channels_, 1, 1);
+    max_idx_.Reshape(num_image_, top_channels_, 1, 1);
+  }
+
+  if (pool_method_ == CrossRegionsPoolingParameter_PoolMethod_TOP)
+    top_roi_ids_.Reshape(num_image_, 1, 1, 1);
+
   if (top.size() >= 2) {
     vector<int> blob_shape;
-    blob_shape.push_back(num_roi);
+    blob_shape.push_back(num_rois);
     blob_shape.push_back(top_channels_);
     top[1]->Reshape(blob_shape);
   }
