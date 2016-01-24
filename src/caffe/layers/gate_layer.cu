@@ -33,6 +33,11 @@ void GateLayer<Dtype>::Forward_gpu(
     Dtype *gate_data = gate_.mutable_gpu_data();
     caffe_gpu_gemm(CblasNoTrans, CblasTrans, batch_size_, output_dim_, 1,
                    Dtype(1.), gate_input_data, gate_dim_multiplier_data, Dtype(0.), gate_data);
+    const Dtype *gate_input_cpu_data = bottom[1]->cpu_data();
+    printf("-> ");
+    for (int id = 0; id < bottom[1]->count(); ++id)
+      printf("%0.3f ", gate_input_cpu_data[id]);
+    printf("\n");
   }
 
   // input -> output
