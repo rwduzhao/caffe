@@ -9,8 +9,8 @@
 #      History:
 =============================================================================*/
 
-#ifndef __CAFFE_LAYERS_SELF_GATED_LAYER_HPP__
-#define __CAFFE_LAYERS_SELF_GATED_LAYER_HPP__
+#ifndef __CAFFE_LAYERS_GATE_LAYER_HPP__
+#define __CAFFE_LAYERS_GATE_LAYER_HPP__
 
 #include <vector>
 
@@ -50,4 +50,4 @@ protected:
 
 }  // namespace caffe
 
-#endif  // __CAFFE_LAYERS_SELF_GATED_LAYER_HPP__
+#endif  // __CAFFE_LAYERS_GATE_LAYER_HPP__
