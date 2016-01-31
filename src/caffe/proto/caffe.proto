@@ -408,6 +408,7 @@ message LayerParameter {
   optional SelfGatedParameter self_gated_param = 8266718;
   optional LastSliceParameter last_slice_param = 8266719;
   optional GateParameter gate_param = 8266720;
+  optional ExpansionParameter expansion_param = 8266721;
 }
 
 // Message that stores parameters used to apply transformation
@@ -1521,6 +1522,13 @@ message OneStepRecurrentMemoryParameter {
   optional uint32 batch_size = 5 [default = 1];
 }
 
+// Message that stores parameters used by LastSliceParameter
 message LastSliceParameter {
   optional int32 num_division = 1;
+}
+
+// Message that stores parameters used by ExpansionParameter
+message ExpansionParameter {
+  optional uint32 dim = 1;
+  optional uint32 batch_size = 2 [default = 1];
 }
