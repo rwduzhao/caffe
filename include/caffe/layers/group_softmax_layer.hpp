@@ -41,10 +41,8 @@ class GroupSoftmaxLayer : public Layer<Dtype> {
   Blob<int> group_ids_;
   vector<vector<int> > group_ids_vec_;
   shared_ptr<Layer<Dtype> > softmax_layer_;
-  vector<vector<Blob<Dtype> > > softmax_bottom_vecs_;
-  vector<vector<Blob<Dtype> > > softmax_top_vecs_;
-  vector<vector<Blob<Dtype>*> > softmax_bottom_ptr_vecs_;
-  vector<vector<Blob<Dtype>*> > softmax_top_ptr_vecs_;
+  Blob<Dtype> softmax_bottom_;
+  Blob<Dtype> softmax_top_;
 };
 
 }  // namespace caffe

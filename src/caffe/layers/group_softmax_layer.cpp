@@ -12,6 +12,9 @@ void GroupSoftmaxLayer<Dtype>::LayerSetUp(
   LayerParameter softmax_param(this->layer_param_);
   softmax_param.set_type("Softmax");
   softmax_layer_ = LayerRegistry<Dtype>::CreateLayer(softmax_param);
+  vector<Blob<Dtype>*> softmax_bottom_vec;
+  softmax_bottom_vec.push_back(bottom[0]);
+  softmax_layer_->SetUp(softmax_bottom_vec, top);
 }
 
 template <typename Dtype>
