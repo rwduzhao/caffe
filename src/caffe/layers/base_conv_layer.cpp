@@ -314,7 +314,6 @@ void BaseConvolutionLayer<Dtype>::forward_gpu_gemm(const Dtype* input,
   const Dtype* col_buff = input;
   if (!is_1x1_) {
     if (!skip_im2col) {
-      col_buffer_.Reshape(col_buffer_shape_);  //rwduzhao: init buffer memory before forward
       conv_im2col_gpu(input, col_buffer_.mutable_gpu_data());
     }
     col_buff = col_buffer_.gpu_data();
@@ -324,9 +323,6 @@ void BaseConvolutionLayer<Dtype>::forward_gpu_gemm(const Dtype* input,
         group_, conv_out_spatial_dim_, kernel_dim_,
         (Dtype)1., weights + weight_offset_ * g, col_buff + col_offset_ * g,
         (Dtype)0., output + output_offset_ * g);
-  }
-  if (!is_1x1_) {
-    col_buffer_.Clear();  //rwduzhao: clear buffer memory after forword
   }
 }
 
@@ -353,7 +349,6 @@ void BaseConvolutionLayer<Dtype>::backward_gpu_gemm(const Dtype* output,
   }
   if (!is_1x1_) {
     conv_col2im_gpu(col_buff, input);
-    col_buffer_.Clear();  //rwduzhao: clear buffer memory after backward
   }
 }
 
@@ -362,7 +357,6 @@ void BaseConvolutionLayer<Dtype>::weight_gpu_gemm(const Dtype* input,
     const Dtype* output, Dtype* weights) {
   const Dtype* col_buff = input;
   if (!is_1x1_) {
-    col_buffer_.Reshape(col_buffer_shape_);  //rwduzhao: init buffer memory before backward; to be cleared in backward_gpu_gemm
     conv_im2col_gpu(input, col_buffer_.mutable_gpu_data());
     col_buff = col_buffer_.gpu_data();
   }
