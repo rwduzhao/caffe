@@ -2,6 +2,7 @@
 #include <cuda_runtime.h>
 #endif
 #include <gflags/gflags.h>
+#include <ctime>
 #include <vector>
 #include <map>
 #include <fstream>
@@ -20,6 +21,7 @@
 #include "caffe/util/io.hpp"
 #include "caffe/util/math_functions.hpp"
 #include "caffe/proto/caffe.pb.h"
+#include "caffe/util/benchmark.hpp"
 
 DEFINE_string(devices, "0", "device ids");
 DEFINE_string(net, "", "net prototxt file");
@@ -215,6 +217,21 @@ void AverageBlobByRowGPU(const Blob<float>* blob, const int blob_offset,
                  multiplier_blob.gpu_data(), (float)0.0, feature_blob_data);
 }
 
+void PrintRemainTime(const int num_total, const int num_pass, const double used_time) {
+  const double mean_time = used_time / (double)num_pass;
+  const int num_remain = num_total - num_pass;
+  const double remain_time = (double)num_remain * mean_time;
+  const double remain_second = fmod(remain_time, 60.);
+  const double remain_minute = floor(fmod(remain_time, 60. * 60.) / 60.0);
+  const double remain_hour = floor(fmod(remain_time, 60. * 60. * 24.) / (60. * 60.));
+  const double remain_day = floor(remain_time / 3600.0 / 24.);
+  LOG(INFO) << "Estimated remaining time: "
+    << remain_day << " days "
+    << remain_hour << " hours "
+    << remain_minute << " minutes "
+    << remain_second << " seconds.";
+}
+
 void ExtractFeature(vector<string> &video_list,map<string,
                     vector<string> > &video_frames_table,
                     const string &frame_prefix,
@@ -265,7 +282,6 @@ void ExtractFeature(vector<string> &video_list,map<string,
       << " (" << image_height_offsets[index]
       << ", " << image_width_offsets[index] << ")";
 
-
   // init feature blobs
   vector<shared_ptr<Blob<float> > > feature_blobs;
   vector<shared_ptr<Blob<float> > > summary_feature_blobs;
@@ -282,7 +298,54 @@ void ExtractFeature(vector<string> &video_list,map<string,
   }
   LOG(INFO) << "Feature blob sizes initialized.";
 
+  int num_frame = 0;
+  int max_single_frame = 0;
   const int num_video = video_list.size();
+  for (int video_index = 0; video_index < num_video; ++video_index) {
+    const string video_name = video_list[video_index];
+    const int num_single_frame = video_frames_table[video_name].size();
+    num_frame += num_single_frame;
+    if (num_single_frame > max_single_frame)
+      max_single_frame = num_single_frame;
+  }
+  LOG(INFO) << "Number of frames: " << num_frame;
+
+  float disk_size = 0.;
+  float max_single_size = 0.;
+  for (int blob_id = 0; blob_id < blob_names.size(); ++blob_id) {
+    const float blob_size = static_cast<float>(summary_feature_blobs[blob_id]->count());
+    if (write_frame_features) {
+      disk_size += (blob_size * static_cast<float>(num_frame));
+      max_single_size += (blob_size * static_cast<float>(max_single_frame));
+    }
+    if (write_average_pool) {
+      disk_size += (blob_size * static_cast<float>(num_video));
+      max_single_size += (blob_size * 1);
+    }
+    if (write_maximum_pool) {
+      disk_size += (blob_size * static_cast<float>(num_video));
+      max_single_size += (blob_size * 1);
+    }
+  }
+  const float disk_size_kb = disk_size * 4. / 1024.;
+  const float disk_size_mb = disk_size_kb / 1024.;
+  const float disk_size_gb = disk_size_mb / 1024.;
+  LOG(INFO) << "Disk space required: "
+    << static_cast<int>(disk_size_gb) << "GB "
+    << static_cast<int>(disk_size_mb) << "MB "
+    << static_cast<int>(disk_size_kb) << "KB";
+  const float data_memory_size_kb = max_single_size * 4. / 1024.;
+  const float data_memory_size_mb = data_memory_size_kb / 1024.;
+  const float data_memory_size_gb = data_memory_size_mb / 1024.;
+  LOG(INFO) << "Data memory space required: "
+    << static_cast<int>(data_memory_size_gb) << "GB "
+    << static_cast<int>(data_memory_size_mb) << "MB "
+    << static_cast<int>(data_memory_size_kb) << "KB";
+
+  std::clock_t start;
+  start = std::clock();
+
+  int num_possessed_frame = 0;
   for (int video_index = 0; video_index < num_video; ++video_index) {
     const string video_name = video_list[video_index];
     LOG(INFO) << "processing video [" << video_index + 1 << "/" << num_video << "]: " << video_name;
@@ -340,6 +403,7 @@ void ExtractFeature(vector<string> &video_list,map<string,
         num_crop_added = 0;
       }
     }
+    num_possessed_frame += frame_list.size();
 
     for (int blob_id = 0; blob_id < blob_names.size(); ++blob_id) {
       const string blob_name = blob_names[blob_id];
@@ -365,6 +429,10 @@ void ExtractFeature(vector<string> &video_list,map<string,
         CHECK(system(("mkdir -p " + GetDirName(outfile)).c_str()) != -1);
       }
     }
+
+    if ((video_index + 1) % 50 == 0)
+      PrintRemainTime(num_frame, num_possessed_frame,
+                      (std::clock() - start) / (double)CLOCKS_PER_SEC);
   }
 }
 
