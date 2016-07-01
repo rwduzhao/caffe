@@ -282,22 +282,6 @@ void ExtractFeature(vector<string> &video_list,map<string,
       << " (" << image_height_offsets[index]
       << ", " << image_width_offsets[index] << ")";
 
-  // init feature blobs
-  vector<shared_ptr<Blob<float> > > feature_blobs;
-  vector<shared_ptr<Blob<float> > > summary_feature_blobs;
-  for (int blob_id = 0; blob_id < blob_names.size(); ++blob_id) {
-    const string blob_name = blob_names[blob_id];
-    const shared_ptr<Blob<float> > blob = net->blob_by_name(blob_name);
-    const int channels = blob->channels();
-    const int height = blob->height();
-    const int width = blob->width();
-    shared_ptr<Blob<float> > feature_blob(new Blob<float>(1, channels, height, width));
-    feature_blobs.push_back(feature_blob);
-    shared_ptr<Blob<float> > summary_feature_blob(new Blob<float>(1, channels, height, width));
-    summary_feature_blobs.push_back(summary_feature_blob);
-  }
-  LOG(INFO) << "Feature blob sizes initialized.";
-
   int num_frame = 0;
   int max_single_frame = 0;
   const int num_video = video_list.size();
@@ -309,6 +293,22 @@ void ExtractFeature(vector<string> &video_list,map<string,
       max_single_frame = num_single_frame;
   }
   LOG(INFO) << "Number of frames: " << num_frame;
+
+  // init feature blobs
+  vector<shared_ptr<Blob<float> > > feature_blobs;
+  vector<shared_ptr<Blob<float> > > summary_feature_blobs;
+  for (int blob_id = 0; blob_id < blob_names.size(); ++blob_id) {
+    const string blob_name = blob_names[blob_id];
+    const shared_ptr<Blob<float> > blob = net->blob_by_name(blob_name);
+    const int channels = blob->channels();
+    const int height = blob->height();
+    const int width = blob->width();
+    shared_ptr<Blob<float> > feature_blob(new Blob<float>(max_single_frame, channels, height, width));
+    feature_blobs.push_back(feature_blob);
+    shared_ptr<Blob<float> > summary_feature_blob(new Blob<float>(1, channels, height, width));
+    summary_feature_blobs.push_back(summary_feature_blob);
+  }
+  LOG(INFO) << "Feature blob sizes initialized.";
 
   float disk_size = 0.;
   float max_single_size = 0.;
