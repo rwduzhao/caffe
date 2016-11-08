@@ -29,8 +29,7 @@ DEFINE_string(model, "", "trained model file");
 DEFINE_int32(batch_size, 0, "");
 DEFINE_string(mean_blob, "", "image mean blob");
 DEFINE_string(channel_means, "0,0,0", "image channel means");
-DEFINE_int32(image_height, 256, "image height");
-DEFINE_int32(image_width, 256, "image width");
+DEFINE_int32(image_side, 256, "image height");
 DEFINE_int32(flip, 0, "augment flip");
 DEFINE_int32(corners, 0, "augment corners");
 DEFINE_string(blobs, "", "blob names to be extracted");
@@ -148,6 +147,8 @@ void ReadMeanFromProtoFile(const string mean_blob_filename,
 void SetImageOffsets(const int image_height, const int image_width,
                      const int image_crop_height, const int image_crop_width,
                      vector<int> &image_height_offsets, vector<int> &image_width_offsets) {
+  image_height_offsets.clear();
+  image_width_offsets.clear();
   // center crop offsets
   image_height_offsets.push_back((image_height - image_crop_height) / 2);
   image_width_offsets.push_back((image_width - image_crop_width) / 2);
@@ -165,13 +166,20 @@ void SetImageOffsets(const int image_height, const int image_width,
   image_width_offsets.push_back(image_width - image_crop_width);
 }
 
-cv::Mat ReadResizedImage(const string image_filename,
-                         const int image_height, const int image_width) {
-  cv::Mat image = ReadImageToCVMat(image_filename, image_height, image_width);
+cv::Mat ReadResizedImage(const string image_filename, const int image_side) {
+  cv::Mat image = ReadImageToCVMat(image_filename);
   if (!image.data) {
     LOG(ERROR) << "failed to read image: " << image_filename;
-    image.create(image_width, image_height, CV_8UC3);
+    image.create(image_side, image_side, CV_8UC3);
     image.setTo(cv::Scalar(0.0, 0.0, 0.0));
+  } else {
+    const float scale = image.rows <= image.cols
+      ? (float)image_side / (float)image.rows
+      : (float)image_side / (float)image.cols;
+    const int new_height = static_cast<int>(scale * (float)image.rows);
+    const int new_width = static_cast<int>(scale * (float)image.cols);
+    cv::Mat tmp_image = image.clone();
+    cv::resize(tmp_image, image, cv::Size(new_width, new_height));
   }
   return image;
 }
@@ -185,7 +193,17 @@ void FillInImageDataBlob(const cv::Mat &image, const Blob<float> *mean_blob,
     for (int h = 0; h < image_blob->height(); ++h) {
       for (int w = 0; w < image_blob->width(); ++w) {
         const float pixel_value = static_cast<float>(static_cast<uint8_t>(image.at<cv::Vec3b>(h + height_offset, w + width_offset)[c]));
-        const int mean_id = mean_blob->offset(0, c, h + height_offset, w + width_offset);
+        int mean_id = 0;
+        if (mean_blob->height() == 1 && mean_blob->width() == 1) {
+          mean_id = 0;
+        } else if (mean_blob->height() == image_blob->height() &&
+                   mean_blob->width() == image_blob->width()) {
+          mean_id = mean_blob->offset(0, c, h, w);
+        } else {
+          CHECK_GE(mean_blob->height(), image_blob->height() + height_offset);
+          CHECK_GE(mean_blob->width(), image_blob->width() + width_offset);
+          mean_id = mean_blob->offset(0, c, h + height_offset, w + width_offset);
+        }
         const float mean_value = mean_blob_data[mean_id];
         const int data_id = image_blob->offset(batch_id, c, h, w);
         image_blob_data[data_id] = pixel_value - mean_value;
@@ -244,8 +262,7 @@ void ExtractFeature(vector<string> &video_list,map<string,
                     const string &net_model,
                     const int device_id,
                     const int batch_size,
-                    const int image_height,
-                    const int image_width,
+                    const int image_side,
                     const Blob<float>* mean_blob,
                     const bool &flip,
                     const int corners,
@@ -274,18 +291,6 @@ void ExtractFeature(vector<string> &video_list,map<string,
     net->Reshape();
   }
   LOG(INFO) << "Batch size set to " << batch_size;
-
-  // set crop offsets
-  vector<int> image_height_offsets;
-  vector<int> image_width_offsets;
-  SetImageOffsets(image_height, image_width,
-                  image_blob->height(), image_blob->width(),
-                  image_height_offsets, image_width_offsets);
-  LOG(INFO) << "Image crop offsets set to:";
-  for (int index = 0; index < image_height_offsets.size(); ++index)
-    LOG(INFO) << index
-      << " (" << image_height_offsets[index]
-      << ", " << image_width_offsets[index] << ")";
 
   int num_frame = 0;
   int max_single_frame = 0;
@@ -347,6 +352,9 @@ void ExtractFeature(vector<string> &video_list,map<string,
     << static_cast<int>(data_memory_size_mb) << "MB "
     << static_cast<int>(data_memory_size_kb) << "KB";
 
+  vector<int> image_height_offsets;
+  vector<int> image_width_offsets;
+
   std::clock_t start;
   start = std::clock();
 
@@ -367,7 +375,13 @@ void ExtractFeature(vector<string> &video_list,map<string,
 
     int num_crop_added = 0;
     for (int frame_id = 0; frame_id < frame_list.size(); ++frame_id) {
-      cv::Mat image = ReadResizedImage(frame_prefix + frame_list[frame_id], image_height, image_width);
+      cv::Mat image = ReadResizedImage(frame_prefix + frame_list[frame_id], image_side);
+      if (frame_id == 0) {
+        SetImageOffsets(image.rows, image.cols,
+                        image_blob->height(), image_blob->width(),
+                        image_height_offsets, image_width_offsets);
+      }
+
       if (true) {  // original non-flip
         for (int crop_id = 0; crop_id < 1 + corners; ++crop_id) {
           const int height_offset = image_height_offsets[crop_id];
@@ -435,7 +449,7 @@ void ExtractFeature(vector<string> &video_list,map<string,
       }
     }
 
-    if ((video_index + 1) % 10 == 0)
+    if ((video_index + 1) % 50 == 0)
       PrintRemainTime(num_frame, num_possessed_frame,
                       (std::clock() - start) / (double)CLOCKS_PER_SEC);
   }
@@ -461,7 +475,7 @@ int main(int argc, char** argv) {
     vector<float> channel_means;
     for (int c = 0; c < channel_mean_strings.size(); ++c)
       channel_means.push_back(atof(channel_mean_strings[c].c_str()));
-    CreateMeanBlobFromChannels(channel_means, FLAGS_image_height, FLAGS_image_width, &mean_blob);
+    CreateMeanBlobFromChannels(channel_means, 1, 1, &mean_blob);
   } else {
     ReadMeanFromProtoFile(FLAGS_mean_blob, &mean_blob);
   }
@@ -479,8 +493,7 @@ int main(int argc, char** argv) {
                  FLAGS_model,
                  device_id,
                  FLAGS_batch_size,
-                 mean_blob.height(),
-                 mean_blob.width(),
+                 FLAGS_image_side,
                  &mean_blob,
                  FLAGS_flip == 1,
                  FLAGS_corners,
@@ -489,35 +502,6 @@ int main(int argc, char** argv) {
                  FLAGS_write_frame_features == 1,
                  FLAGS_write_average_pool == 1,
                  FLAGS_write_maximum_pool == 1);
-//  thread_group t_group;
-//  for (int device_id = 0; device_id < device_ids.size(); ++device_id) {
-//    const string frame_prefix = string(FLAGS_frame_prefix);
-//    const string net = string(FLAGS_net);
-//    const string model = string(FLAGS_model);
-//    int batch_size = FLAGS_batch_size;
-//    const bool flip = FLAGS_flip == 1;
-//    const int corners = FLAGS_corners;
-//    const string outfile_prefix = string(FLAGS_outfile_prefix);
-//    t_group.add_thread(new thread(ExtractFeature,
-//                                  video_list,
-//                                  video_frames_table,
-//                                  frame_prefix,
-//                                  net,
-//                                  model,
-//                                  device_id,
-//                                  batch_size,
-//                                  mean_blob.height(),
-//                                  mean_blob.width(),
-//                                  &mean_blob,
-//                                  flip,
-//                                  corners,
-//                                  blob_names,
-//                                  outfile_prefix,
-//                                  FLAGS_write_frame_features == 1,
-//                                  FLAGS_write_average_pool == 1,
-//                                  FLAGS_write_maximum_pool == 1));
-//  }
-//  t_group.join_all();
 
   return 0;
 }
