@@ -13,6 +13,25 @@
 
 namespace caffe {
 
+template <typename Dtype>
+void caffe_cpu_set(const int N, const Dtype alpha, Dtype* Y) {
+  caffe_set(N, alpha, Y);
+}
+
+template <>
+void caffe_gpu_axpy<float>(const int N, const float alpha,
+                           const float* X, const int incX,
+                           float* Y, const int incY) {
+  CUBLAS_CHECK(cublasSaxpy(Caffe::cublas_handle(), N, &alpha, X, incX, Y, incY));
+}
+
+template <>
+void caffe_gpu_axpy<double>(const int N, const double alpha,
+                            const double* X, const int incX,
+                            double* Y, const int incY) {
+  CUBLAS_CHECK(cublasDaxpy(Caffe::cublas_handle(), N, &alpha, X, incX, Y, incY));
+}
+
 // sigmoid {{{
 
 template <typename Dtype>

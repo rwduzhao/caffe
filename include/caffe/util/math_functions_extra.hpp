@@ -18,6 +18,13 @@ inline Dtype sigmoid(Dtype x) {
   return Dtype(1.) / (Dtype(1.) + exp(-x));
 }
 
+template <typename Dtype>
+void caffe_cpu_set(const int N, const Dtype alpha, Dtype *X);
+template <typename Dtype>
+void caffe_cpu_axpy(const int N, const Dtype alpha, const Dtype* X, const int incX, Dtype* Y, const int incY);
+template <typename Dtype>
+void caffe_gpu_axpy(const int N, const Dtype alpha, const Dtype* X, const int incX, Dtype* Y, const int incY);
+
 template <typename Dtype> void caffe_cpu_sigmoid(const int N, const Dtype* x, Dtype* y);
 template <typename Dtype> void caffe_gpu_sigmoid(const int N, const Dtype* x, Dtype* y);
 template <typename Dtype> void caffe_cpu_sigmoid_diff(const int N, const Dtype* y, const Dtype* y_diff, Dtype* x_diff);

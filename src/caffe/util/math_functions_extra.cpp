@@ -10,6 +10,20 @@
 
 namespace caffe {
 
+template <>
+void caffe_cpu_axpy<float>(const int N, const float alpha,
+                           const float* X, const int incX,
+                           float* Y, const int incY) {
+  cblas_saxpy(N, alpha, X, incX, Y, incY);
+}
+
+template <>
+void caffe_cpu_axpy<double>(const int N, const double alpha,
+                            const double* X, const int incX,
+                            double* Y, const int incY) {
+  cblas_daxpy(N, alpha, X, incX, Y, incY);
+}
+
 // sigmoid {{{
 
 template <>
