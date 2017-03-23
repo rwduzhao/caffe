@@ -35,11 +35,14 @@ void GateLayer<Dtype>::Forward_gpu(
                    Dtype(1.), gate_input_data, gate_dim_multiplier_data, Dtype(0.), gate_data);
     if (true) {
       const Dtype *gate_input_cpu_data = bottom[1]->cpu_data();
-      printf("-> ");
-      const int max_num_print = 20;
+      printf("gv ->");
+      const int max_num_print = 5;
       for (int id = 0; id < std::min(bottom[1]->count(), max_num_print); ++id)
-        printf("%0.3f ", gate_input_cpu_data[id]);
-      printf("\n");
+        fprintf(stdout, " %0.3f", gate_input_cpu_data[id]);
+      fprintf(stdout, " ...");
+      for (int id = std::max(0, bottom[1]->count() - max_num_print); id < bottom[1]->count(); ++id)
+        fprintf(stdout, " %0.3f", gate_input_cpu_data[id]);
+      fprintf(stdout, "\n");
     }
   }
 
