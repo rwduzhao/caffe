@@ -422,6 +422,9 @@ message LayerParameter {
   optional GateParameter gate_param = 8266720;
   optional ExpansionParameter expansion_param = 8266721;
   optional GroupSoftmaxParameter group_softmax_param = 8266722;
+  optional S2TParameter s2t_param = 8266724;
+  optional int32 prop_skip_period = 9000001 [default = 0];
+  optional int32 prop_skip_index = 9000002 [default = 0];
 }
 
 // Message that stores parameters used to apply transformation
@@ -1581,10 +1584,11 @@ message ROIPoolingParameter {
     INT = 2;  // interpolated
   }
   optional PoolMethod pool = 101 [default = MAX];
-  optional uint32 position_map_height = 102 [default = 10];
-  optional uint32 position_map_width = 103 [default = 10];
-  optional uint32 shape_map_height = 104 [default = 10];
-  optional uint32 shape_map_width = 105 [default = 10];
+  enum RegionType {
+    ROI = 0;
+    FULL = 1;
+  }
+  optional RegionType region_type = 102 [default = ROI];
 }
 
 // Message that stores parameters used by CrossRegionsPoolingLayer
@@ -1693,4 +1697,18 @@ message GroupSoftmaxParameter {
   // from the end (e.g., -1 for the last axis).
   // Any other axes will be evaluated as independent softmaxes.
   optional int32 axis = 2 [default = 1];
+}
+
+message S2TParameter {
+  enum Order {
+    H0 = 0;
+    W0 = 1;
+    H0W0 = 2;
+    W0H0 = 3;
+    H01W0 = 4;
+    H10W1 = 5;
+    W01H0 = 6;
+    W10H1 = 7;
+  }
+  optional Order order = 1 [default = H0W0];
 }

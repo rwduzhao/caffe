@@ -25,6 +25,9 @@ void BalancedSigmoidCrossEntropyLossLayer<Dtype>::LayerSetUp(
   sigmoid_top_vec_.clear();
   sigmoid_top_vec_.push_back(sigmoid_output_.get());
   sigmoid_layer_->SetUp(sigmoid_bottom_vec_, sigmoid_top_vec_);
+  prop_skip_period_ = this->layer_param_.prop_skip_period();
+  prop_skip_index_ = this->layer_param_.prop_skip_index();
+  prop_skip_count_ = 0;
 }
 
 template <typename Dtype>
@@ -71,7 +74,9 @@ void BalancedSigmoidCrossEntropyLossLayer<Dtype>::Backward_cpu(
     LOG(FATAL) << this->type()
                << " Layer cannot backpropagate to label inputs.";
   }
-  if (propagate_down[0]) {
+  const bool period_prop_down = (prop_skip_period_ == 0) ||
+    (prop_skip_count_ != prop_skip_index_);
+  if (propagate_down[0] && period_prop_down) {
     // First, compute the diff
     const int count = bottom[0]->count();
     const Dtype* sigmoid_output_data = sigmoid_output_->cpu_data();
@@ -88,7 +93,14 @@ void BalancedSigmoidCrossEntropyLossLayer<Dtype>::Backward_cpu(
       else
         bottom_diff[index] *= neg_scale;
     }
+  } else {
+    const int count = bottom[0]->count();
+    Dtype* bottom_diff = bottom[0]->mutable_gpu_diff();
+    caffe_gpu_set(count, Dtype(0.), bottom_diff);
   }
+  ++prop_skip_count_;
+  if (prop_skip_count_ >= prop_skip_period_)
+    prop_skip_count_ = 0;
 }
 
 INSTANTIATE_CLASS(BalancedSigmoidCrossEntropyLossLayer);

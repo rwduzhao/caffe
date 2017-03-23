@@ -57,6 +57,9 @@ protected:
 
   Dtype pos_count_;
   Dtype neg_count_;
+  int prop_skip_period_;
+  int prop_skip_index_;
+  int prop_skip_count_;
 };
 
 }
