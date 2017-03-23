@@ -21,9 +21,9 @@ public:
   virtual inline const char* type() const { return "ROIPooling"; }
 
   virtual inline int MinBottomBlobs() const { return 2; }
-  virtual inline int MaxBottomBlobs() const { return 2; }
+  virtual inline int MaxBottomBlobs() const { return 3; }
   virtual inline int MinTopBlobs() const { return 1; }
-  virtual inline int MaxTopBlobs() const { return 3; }
+  virtual inline int MaxTopBlobs() const { return 1; }
 
 protected:
   virtual void Forward_cpu(const vector<Blob<Dtype>*>& bottom, const vector<Blob<Dtype>*>& top);
@@ -40,11 +40,7 @@ protected:
   int pooled_channels_;
   Dtype spatial_scale_;
   Blob<int> max_idx_;
-
-  int position_map_height_;
-  int position_map_width_;
-  int shape_map_height_;
-  int shape_map_width_;
+  vector<shared_ptr<Blob<Dtype> > > temp_blobs_;
 };
 
 }

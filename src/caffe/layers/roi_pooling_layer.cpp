@@ -26,29 +26,33 @@ void ROIPoolingLayer<Dtype>::LayerSetUp(
   const vector<Blob<Dtype>*>& top) {
 
   // layer parameters
-  ROIPoolingParameter roi_pool_param = this->layer_param_.roi_pooling_param();
+  ROIPoolingParameter roi_pooling_param = this->layer_param_.roi_pooling_param();
 
   // pooled sizes
-  pooled_height_ = roi_pool_param.pooled_h();
+  pooled_height_ = roi_pooling_param.pooled_h();
   CHECK_GT(pooled_height_, 0) << "pooled height must be greater 0";
-  pooled_width_ = roi_pool_param.pooled_w();
+  pooled_width_ = roi_pooling_param.pooled_w();
   CHECK_GT(pooled_width_, 0) << "pooled width must be greater 0";
 
   // spatial scale
-  spatial_scale_ = roi_pool_param.spatial_scale();
+  spatial_scale_ = roi_pooling_param.spatial_scale();
   CHECK_GT(spatial_scale_, 0) << "spatial scale must be greater 0";
 
-  // position map sizes
-  position_map_height_ = roi_pool_param.position_map_height();
-  CHECK_GE(position_map_height_, 0) << "position map height must be greater or equal to 0";
-  position_map_width_ = roi_pool_param.position_map_width();
-  CHECK_GE(position_map_width_, 0) << "position map width must be greater or equal to 0";
-
-  // shape map sizes
-  shape_map_height_ = roi_pool_param.shape_map_height();
-  CHECK_GE(shape_map_height_, 0) << "shape map height must be greater or equal to 0";
-  shape_map_width_ = roi_pool_param.shape_map_width();
-  CHECK_GE(shape_map_width_, 0) << "shape map width must be greater or equal to 0";
+  int internal_blob_size = 0;
+  switch (roi_pooling_param.region_type()) {
+    case ROIPoolingParameter_RegionType_ROI:
+      break;
+    case ROIPoolingParameter_RegionType_FULL:
+      ++internal_blob_size;
+      break;
+    default:
+      break;
+  }
+  this->temp_blobs_.resize(internal_blob_size);
+  const vector<int> blob_shape = bottom[1]->shape();
+  for (int blob_id = 0; blob_id < internal_blob_size; ++blob_id) {
+    this->temp_blobs_[blob_id].reset(new Blob<Dtype>(blob_shape));
+  }
 }
 
 template <typename Dtype>
@@ -65,12 +69,37 @@ void ROIPoolingLayer<Dtype>::Reshape(
   top[0]->Reshape(bottom[1]->num(), pooled_channels_, pooled_height_, pooled_width_);
   max_idx_.Reshape(bottom[1]->num(), pooled_channels_, pooled_height_, pooled_width_);
 
-  const int num_top = top.size();
-  if (num_top > 1) {
-    top[1]->Reshape(bottom[1]->num(), 1, position_map_height_, position_map_width_);
-  }
-  if (num_top > 2) {
-    top[2]->Reshape(bottom[1]->num(), 1, shape_map_height_, shape_map_width_);
+  ROIPoolingParameter roi_pooling_param = this->layer_param_.roi_pooling_param();
+  switch (roi_pooling_param.region_type()) {
+    case ROIPoolingParameter_RegionType_ROI:
+      break;
+    case ROIPoolingParameter_RegionType_FULL:
+      {
+        // Copy ROI index from bottom[1] to temp_blobs_[0], and
+        // Set box sizes in temp_blobs_[0] all to be image sizes.
+        Blob<Dtype>* rois_ref_blob = bottom[1];
+        Blob<Dtype>* rois_blob = this->temp_blobs_[0].get();
+        const vector<int> rois_shape = rois_ref_blob->shape();
+        rois_blob->Reshape(rois_shape);
+        const Blob<Dtype>* image_shapes_blob = bottom[2];
+        const Dtype* image_shapes_blob_data = image_shapes_blob->cpu_data();
+        const Dtype* rois_ref_blob_data = bottom[1]->cpu_data();
+        Dtype* rois_blob_data = rois_blob->mutable_cpu_data();
+        const int rois_num = bottom[1]->num();
+        for (int rois_id = 0; rois_id < rois_num; ++rois_id) {
+          const int roi_index = static_cast<int>(rois_ref_blob_data[rois_ref_blob->offset(rois_id)]);
+          rois_blob_data[rois_blob->offset(rois_id, 0)] = static_cast<Dtype>(roi_index);
+          const Dtype roi_height = image_shapes_blob_data[rois_ref_blob->offset(roi_index, 1)] - 1;
+          const Dtype roi_width = image_shapes_blob_data[rois_ref_blob->offset(roi_index, 0)] - 1;
+          rois_blob_data[rois_blob->offset(rois_id, 1)] = Dtype(0.);
+          rois_blob_data[rois_blob->offset(rois_id, 2)] = Dtype(0.);
+          rois_blob_data[rois_blob->offset(rois_id, 3)] = roi_height;
+          rois_blob_data[rois_blob->offset(rois_id, 4)] = roi_width;
+        }
+      }
+      break;
+    default:
+      break;
   }
 }
 

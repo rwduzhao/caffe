@@ -3,6 +3,7 @@
 // Copyright (c) 2015 Microsoft
 // Licensed under The MIT License [see fast-rcnn/LICENSE for details]
 // Written by Ross Girshick
+// Modified by Rui-Wei Zhao
 // ------------------------------------------------------------------
 
 #include <cfloat>
@@ -16,66 +17,7 @@ using std::min;
 namespace caffe {
 
 template <typename Dtype>
-__global__ void MakeRoiPositionMap(const int nthreads,
-  const int map_height, const int map_width,
-  const int bottom_height, const int bottom_width,
-  const Dtype* bottom_rois, Dtype* map_data) {
-  // map size scales
-  const Dtype map_height_scale = static_cast<Dtype>(map_height) / static_cast<Dtype>(bottom_height);
-  const Dtype map_width_scale = static_cast<Dtype>(map_width) / static_cast<Dtype>(bottom_width);
-
-  CUDA_KERNEL_LOOP(index, nthreads) {
-    bottom_rois += index * 5;
-    const int batch_ind = bottom_rois[0];
-    const int map_start_w = max(0, int(round(bottom_rois[1] * map_width_scale)));
-    const int map_start_h = max(0, int(round(bottom_rois[2] * map_height_scale)));
-    const int map_end_w = min(int(round(bottom_rois[3] * map_width_scale)), map_width);
-    const int map_end_h = min(int(round(bottom_rois[4] * map_height_scale)), map_height);
-
-    map_data += batch_ind * map_height * map_width;
-    for (int h = map_start_h; h <= map_end_h; ++h) {
-      for (int w = map_start_w; w <= map_end_w; ++w) {
-        const int map_index = h * map_width + w;
-        map_data[map_index] = Dtype(1.);
-      }
-    }
-  }
-}
-
-template <typename Dtype>
-__global__ void MakeRoiShapeMap(const int nthreads,
-  const int map_height, const int map_width,
-  const Dtype* bottom_rois, Dtype* map_data) {
-
-  CUDA_KERNEL_LOOP(index, nthreads) {
-    bottom_rois += index * 5;
-    const int batch_ind = static_cast<int>(bottom_rois[0]);
-    const int roi_height = static_cast<int>(bottom_rois[4] - bottom_rois[2] + 1);
-    const int roi_width = static_cast<int>(bottom_rois[3] - bottom_rois[1] + 1);
-
-    const int max_roi_side = max(roi_height, roi_width);
-    const Dtype height_ratio = static_cast<Dtype>(roi_height) / static_cast<Dtype>(max_roi_side);
-    const Dtype width_ratio = static_cast<Dtype>(roi_width) / static_cast<Dtype>(max_roi_side);
-    const int mapped_height = max(1, static_cast<int>(height_ratio * static_cast<Dtype>(map_height)));
-    const int mapped_width = max(1, static_cast<int>(width_ratio * static_cast<Dtype>(map_width)));
-
-    const int mapped_h_start = (map_height - mapped_height) / 2;
-    const int mapped_h_end = mapped_h_start + mapped_height - 1;
-    const int mapped_w_start = (map_width - mapped_width) / 2;
-    const int mapped_w_end = mapped_w_start + mapped_width - 1;
-
-    map_data += batch_ind * map_height * map_width;
-    for (int h = mapped_h_start; h <= mapped_h_end; ++h) {
-      for (int w = mapped_w_start; w <= mapped_w_end; ++w) {
-        const int map_index = h * map_width + w;
-        map_data[map_index] = Dtype(1.);
-      }
-    }
-  }
-}
-
-template <typename Dtype>
-__global__ void ROIPoolForward(const int nthreads, const Dtype* bottom_data,
+__global__ void ROIPoolForward_MAX(const int nthreads, const Dtype* bottom_data,
     const Dtype spatial_scale, const int channels, const int height,
     const int width, const int pooled_height, const int pooled_width,
     const Dtype* bottom_rois, Dtype* top_data, int* argmax_data) {
@@ -208,15 +150,25 @@ void ROIPoolingLayer<Dtype>::Forward_gpu(
 
   // CheckRoisSanity(bottom[0], bottom[1]);
   const Dtype* bottom_data = bottom[0]->gpu_data();
-  const Dtype* bottom_rois = bottom[1]->gpu_data();
+  const Dtype* bottom_rois;
+  ROIPoolingParameter roi_pooling_param = this->layer_param_.roi_pooling_param();
+  switch (roi_pooling_param.region_type()) {
+    case ROIPoolingParameter_RegionType_ROI:
+      bottom_rois = bottom[1]->gpu_data();
+      break;
+    case ROIPoolingParameter_RegionType_FULL:
+      bottom_rois = this->temp_blobs_[0].get()->mutable_gpu_data();
+      break;
+    default:
+      break;
+  }
   Dtype* top_data = top[0]->mutable_gpu_data();
   int* argmax_data = max_idx_.mutable_gpu_data();
   int count = top[0]->count();
-  ROIPoolingParameter roi_pooling_param = this->layer_param_.roi_pooling_param();
   switch (roi_pooling_param.pool()) {
     case ROIPoolingParameter_PoolMethod_MAX:
       // NOLINT_NEXT_LINE(whitespace/operators)
-      ROIPoolForward<Dtype><<<CAFFE_GET_BLOCKS(count), CAFFE_CUDA_NUM_THREADS>>>(
+      ROIPoolForward_MAX<Dtype><<<CAFFE_GET_BLOCKS(count), CAFFE_CUDA_NUM_THREADS>>>(
         count, bottom_data, spatial_scale_, channels_, height_, width_,
         pooled_height_, pooled_width_, bottom_rois, top_data, argmax_data);
       CUDA_POST_KERNEL_CHECK;
@@ -233,33 +185,10 @@ void ROIPoolingLayer<Dtype>::Forward_gpu(
     default:
       break;
   }
-
-  const int num_top = top.size();
-  if (num_top > 1) {
-    const int bottom_height = bottom[0]->height();
-    const int bottom_width = bottom[0]->width();
-    const int num_roi = bottom[1]->num();
-    Dtype* position_map_data = top[1]->mutable_gpu_data();
-    caffe_gpu_set(top[1]->count(), Dtype(0.), position_map_data);
-    // NOLINT_NEXT_LINE(whitespace/operators)
-    MakeRoiPositionMap<Dtype><<<CAFFE_GET_BLOCKS(num_roi), CAFFE_CUDA_NUM_THREADS>>>(
-      num_roi, position_map_height_, position_map_width_, bottom_height, bottom_width,
-      bottom_rois, position_map_data);
-    CUDA_POST_KERNEL_CHECK;
-  }
-  if (num_top > 2) {
-    const int num_roi = bottom[1]->num();
-    Dtype* shape_map_data = top[2]->mutable_gpu_data();
-    caffe_gpu_set(top[2]->count(), Dtype(0.), shape_map_data);
-    // NOLINT_NEXT_LINE(whitespace/operators)
-    MakeRoiShapeMap<Dtype><<<CAFFE_GET_BLOCKS(num_roi), CAFFE_CUDA_NUM_THREADS>>>(
-      num_roi, shape_map_height_, shape_map_width_, bottom_rois, shape_map_data);
-    CUDA_POST_KERNEL_CHECK;
-  }
 }
 
 template <typename Dtype>
-__global__ void ROIPoolBackward(const int nthreads, const Dtype* top_diff,
+__global__ void ROIPoolBackward_MAX(const int nthreads, const Dtype* top_diff,
     const int* argmax_data, const int num_rois, const Dtype spatial_scale,
     const int channels, const int height, const int width,
     const int pooled_height, const int pooled_width, Dtype* bottom_diff,
@@ -408,18 +337,28 @@ void ROIPoolingLayer<Dtype>::Backward_gpu(const vector<Blob<Dtype>*>& top,
   if (!propagate_down[0]) {
     return;
   }
-  const Dtype* bottom_rois = bottom[1]->gpu_data();
+  const Dtype* bottom_rois;
+  ROIPoolingParameter roi_pooling_param = this->layer_param_.roi_pooling_param();
+  switch (roi_pooling_param.region_type()) {
+    case ROIPoolingParameter_RegionType_ROI:
+      bottom_rois = bottom[1]->gpu_data();
+      break;
+    case ROIPoolingParameter_RegionType_FULL:
+      bottom_rois = this->temp_blobs_[0].get()->gpu_data();
+      break;
+    default:
+      break;
+  }
   const Dtype* top_diff = top[0]->gpu_diff();
   Dtype* bottom_diff = bottom[0]->mutable_gpu_diff();
   const int count = bottom[0]->count();
   caffe_gpu_set(count, Dtype(0.), bottom_diff);
   const int* argmax_data = max_idx_.gpu_data();
 
-  ROIPoolingParameter roi_pooling_param = this->layer_param_.roi_pooling_param();
   switch (roi_pooling_param.pool()) {
     case ROIPoolingParameter_PoolMethod_MAX:
       // NOLINT_NEXT_LINE(whitespace/operators)
-      ROIPoolBackward<Dtype><<<CAFFE_GET_BLOCKS(count), CAFFE_CUDA_NUM_THREADS>>>(
+      ROIPoolBackward_MAX<Dtype><<<CAFFE_GET_BLOCKS(count), CAFFE_CUDA_NUM_THREADS>>>(
         count, top_diff, argmax_data, top[0]->num(), spatial_scale_, channels_,
         height_, width_, pooled_height_, pooled_width_, bottom_diff, bottom_rois);
       CUDA_POST_KERNEL_CHECK;
