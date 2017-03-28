@@ -46,6 +46,9 @@ protected:
                             const vector<bool>& propagate_down,
                             const vector<Blob<Dtype>*>& bottom);
 
+  virtual Dtype get_normalizer(
+      LossParameter_NormalizationMode normalization_mode, int valid_count);
+
   /// The internal SigmoidLayer used to map predictions to probabilities.
   shared_ptr<SigmoidLayer<Dtype> > sigmoid_layer_;
   /// sigmoid_output stores the output of the SigmoidLayer.
@@ -55,6 +58,11 @@ protected:
   /// top vector holder to call the underlying SigmoidLayer::Forward
   vector<Blob<Dtype>*> sigmoid_top_vec_;
 
+  bool has_ignore_label_;
+  int ignore_label_;
+  LossParameter_NormalizationMode normalization_;
+  Dtype normalizer_;
+  int outer_num_, inner_num_;
   Dtype pos_count_;
   Dtype neg_count_;
   int prop_skip_period_;
