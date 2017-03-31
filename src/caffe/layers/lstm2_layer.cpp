@@ -112,16 +112,6 @@ void LSTM2Layer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
   CHECK_EQ(top[0]->cpu_data(), top_.cpu_data());
   Dtype* top_data = top_.mutable_cpu_data();
   const Dtype* bottom_data = bottom[0]->cpu_data();
-//  LOG(INFO) << "bottom[0] shape:"
-//    << " " << bottom[0]->num()
-//    << " " << bottom[0]->channels()
-//    << " " << bottom[0]->height()
-//    << " " << bottom[0]->width();
-//  for (int i = 0; i < 5; ++i)
-//    std::cout << " " << bottom_data[i];
-//  for (int i = bottom[0]->num() - 5; i < bottom[0]->num(); ++i)
-//    std::cout << " " << bottom_data[i];
-//  std::cout << "\n";
   const Dtype* clip = NULL;
   if (bottom.size() > 1) {
     clip = bottom[1]->cpu_data();

@@ -425,6 +425,7 @@ message LayerParameter {
   optional ExpansionParameter expansion_param = 8266721;
   optional GroupSoftmaxParameter group_softmax_param = 8266722;
   optional S2TParameter s2t_param = 8266724;
+  optional MlabelHingeLossParameter mlabel_hinge_loss_param = 8266725;
   optional int32 prop_skip_period = 9000001 [default = 0];
   optional int32 prop_skip_index = 9000002 [default = 0];
 }
@@ -1725,4 +1726,15 @@ message S2TParameter {
     W10H1 = 7;
   }
   optional Order order = 1 [default = H0W0];
+}
+
+message MlabelHingeLossParameter {
+  enum Norm {
+    L1 = 1;
+    L2 = 2;
+  }
+  // Specify the Norm to use L1 or L2
+  optional Norm norm = 1 [default = L1];
+  optional float threshold = 2 [default = 0.];
+  optional bool balanced = 3 [default = false];
 }

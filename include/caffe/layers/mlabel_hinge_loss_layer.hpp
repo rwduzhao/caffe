@@ -16,7 +16,6 @@ class MlabelHingeLossLayer : public LossLayer<Dtype> {
  public:
   explicit MlabelHingeLossLayer(const LayerParameter& param)
       : LossLayer<Dtype>(param) {}
-
   virtual inline const char* type() const { return "MlabelHingeLoss"; }
 
  protected:
@@ -24,6 +23,12 @@ class MlabelHingeLossLayer : public LossLayer<Dtype> {
       const vector<Blob<Dtype>*>& top);
   virtual void Backward_cpu(const vector<Blob<Dtype>*>& top,
       const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom);
+
+  Dtype threshold_;
+  bool balanced_;
+  Dtype pos_count_;
+  Dtype neg_count_;
+  Blob<Dtype> coef_blob_;
 };
 
 

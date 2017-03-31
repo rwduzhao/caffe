@@ -18,10 +18,10 @@ void S2TLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
 template <typename Dtype>
 void S2TLayer<Dtype>::Reshape(const vector<Blob<Dtype>*>& bottom,
     const vector<Blob<Dtype>*>& top) {
-  bot_n_ = bottom[0]->num();
-  bot_c_ = bottom[0]->channels();
-  bot_h_ = bottom[0]->height();
-  bot_w_ = bottom[0]->width();
+  bot_n_ = bottom[0]->num();  // num of examples
+  bot_c_ = bottom[0]->channels();  // feature dim
+  bot_h_ = bottom[0]->height();  // feature map height
+  bot_w_ = bottom[0]->width();  // feature map width
 
   const S2TParameter param = this->layer_param_.s2t_param();
   switch (param.order()) {
@@ -38,13 +38,20 @@ void S2TLayer<Dtype>::Reshape(const vector<Blob<Dtype>*>& bottom,
       top_w_ = 1;
       break;
     default:
-      top_n_ = bot_h_ * bot_w_;
-      top_c_ = bot_n_;
-      top_h_ = bot_c_;
+      top_n_ = bot_h_ * bot_w_ * bot_n_;
+      top_c_ = bot_c_;
+      top_h_ = 1;
       top_w_ = 1;
       break;
   }
+  // top_n_ : num example * time step = bot_n_ * bot_h_ * bot_w_
+  // top_c_ : feature dim = bot_c_
+  // top_h_ : 1
+  // top_w_ : 1
   top[0]->Reshape(top_n_, top_c_, top_h_, top_w_);
+
+  if (top.size() == 2)
+    top[1]->Reshape(top_n_, 1, 1, 1);  // clip data : num example * time step - 1 - 1 - 1
 }
 
 template <typename Dtype>
@@ -71,6 +78,14 @@ void S2TLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
                        top_data + top_offset, top_inc);
       }
     }
+  }
+
+  // clip data
+  if (top.size() == 2) {
+    Dtype* clip_data = top[1]->mutable_cpu_data();
+    caffe_set(top[1]->count(), Dtype(1.), clip_data);
+    for (int nid = 0; nid < bot_n_; ++nid)
+      clip_data[top[1]->offset(nid * bot_h_ * bot_w_)] = Dtype(0.);
   }
 }
 

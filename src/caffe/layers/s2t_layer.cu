@@ -35,6 +35,14 @@ void S2TLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
       }
     }
   }
+
+  // clip data
+  if (top.size() == 2) {
+    Dtype* clip_data = top[1]->mutable_cpu_data();
+    caffe_set(top[1]->count(), Dtype(1.), clip_data);
+    for (int nid = 0; nid < bot_n_; ++nid)
+      clip_data[top[1]->offset(nid * bot_h_ * bot_w_)] = Dtype(0.);
+  }
 }
 
 template <typename Dtype>

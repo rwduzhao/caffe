@@ -1,5 +1,6 @@
 #include <cfloat>
 #include "caffe/layers/spatial_pool_layer.hpp"
+#include "caffe/util/math_functions.hpp"
 
 using std::max;
 using std::min;
@@ -31,7 +32,7 @@ __global__ void SpatialPoolForward(
         const int bn = roi_id;
         const int bot_id = bn * bot_c * bot_h * bot_w +
           bc * bot_h * bot_w + bh * bot_w + bw;
-        if (top_data[top_id] < bot_data[bot_id]) {
+        if (argmax_data[top_id] == -1 || top_data[top_id] < bot_data[bot_id]) {
           top_data[top_id] = bot_data[bot_id];
           argmax_data[top_id] = bot_id;
         }
@@ -90,9 +91,10 @@ void SpatialPoolLayer<Dtype>::Forward_gpu(
 
   Blob<Dtype>* top_blob = top[0];
   Dtype* top_data = top_blob->mutable_gpu_data();
+  caffe_gpu_set(top_blob->count(), Dtype(0), top_data);
 
   int* argmax_data = max_idx_.mutable_gpu_data();
-  caffe_gpu_set(max_idx_.count(), 0, argmax_data);
+  caffe_gpu_set(max_idx_.count(), -1, argmax_data);
 
   const Dtype* bot_data = data_blob->gpu_data();
   const int* location_data = pool_locations_.gpu_data();

@@ -24,7 +24,7 @@ class S2TLayer : public Layer<Dtype> {
 
   virtual inline const char* type() const { return "S2T"; }
   virtual inline int ExactNumBottomBlobs() const { return 1; }
-  virtual inline int ExactNumTopBlobs() const { return 1; }
+  virtual inline int MinNumTopBlobs() const { return 1; }
 
  protected:
   virtual void Forward_cpu(const vector<Blob<Dtype>*>& bottom,
@@ -52,6 +52,7 @@ class S2TLayer : public Layer<Dtype> {
                        int& bot_offset, int& top_offset) {
     const int bot_h = bottom->height();
     const int bot_w = bottom->width();
+    const int time_step = bot_h * bot_w;
     switch (order) { case S2TParameter_Order_H0:
       // H-NW-C-1
       bot_offset = bottom->offset(nid, 0, hid, wid);
@@ -65,40 +66,40 @@ class S2TLayer : public Layer<Dtype> {
       case S2TParameter_Order_H0W0:
       // HW-N-C-1
       bot_offset = bottom->offset(nid, 0, hid, wid);
-      top_offset = top->offset(wid * bot_h + hid, nid, 0, 0);
+      top_offset = top->offset(nid * time_step + wid * bot_h + hid, 0, 0, 0);
       break;
       case S2TParameter_Order_W0H0:
       // WH-N-C-1
       bot_offset = bottom->offset(nid, 0, hid, wid);
-      top_offset = top->offset(hid * bot_w + wid, nid, 0, 0);
+      top_offset = top->offset(nid * time_step + hid * bot_w + wid, 0, 0, 0);
       break;
       case S2TParameter_Order_H01W0:
       // HW-N-C-1
       bot_offset = hid % 2 == 0 ?
         bottom->offset(nid, 0, hid, wid) :
         bottom->offset(nid, 0, bot_h - hid - 1, wid);
-      top_offset = top->offset(wid * bot_h + hid, nid, 0, 0);
+      top_offset = top->offset(nid * time_step + wid * bot_h + hid, 0, 0, 0);
       break;
       case S2TParameter_Order_H10W1:
       // HW-N-C-1
       bot_offset = hid % 2 == 0 ?
         bottom->offset(nid, 0, bot_h - hid - 1, bot_w - wid - 1) :
         bottom->offset(nid, 0, hid, bot_w - wid - 1);
-      top_offset = top->offset(wid * bot_h + hid, nid, 0, 0);
+      top_offset = top->offset(nid * time_step + wid * bot_h + hid, 0, 0, 0);
       break;
       case S2TParameter_Order_W01H0:
       // WH-N-C-1
       bot_offset = wid % 2 == 0 ?
         bottom->offset(nid, 0, hid, wid) :
         bottom->offset(nid, 0, hid, bot_w - wid - 1);
-      top_offset = top->offset(hid * bot_w + wid, nid, 0, 0);
+      top_offset = top->offset(nid * time_step + hid * bot_w + wid, 0, 0, 0);
       break;
       case S2TParameter_Order_W10H1:
       // WH-N-C-1
       bot_offset = wid % 2 == 0 ?
         bottom->offset(nid, 0, bot_h - hid - 1, bot_w - wid - 1) :
         bottom->offset(nid, 0, bot_h - hid - 1, wid);
-      top_offset = top->offset(hid * bot_w + wid, nid, 0, 0);
+      top_offset = top->offset(nid * time_step + hid * bot_w + wid, 0, 0, 0);
       break;
       default:
       LOG(FATAL) << "Unsupported S2T order!";
